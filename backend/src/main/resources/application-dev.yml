@@ -1,0 +1,24 @@
+spring:
+  jpa:
+    show-sql: true
+
+# Default to log-only mail in dev so the backend boots without SMTP credentials.
+# Set MAIL_LOG_ONLY=false and provide MAIL_USERNAME / MAIL_PASSWORD (Mailtrap
+# sandbox works out of the box) to actually deliver the verification + reset emails.
+app:
+  mail:
+    log-only: ${MAIL_LOG_ONLY:true}
+
+# Spring Boot's MailHealthIndicator opens a real SMTP connection regardless of
+# app.mail.log-only, so it always fails in dev without Mailtrap credentials and
+# drags the overall actuator/health status to DOWN. Disable it for dev — the
+# log-only EmailService doesn't need a live SMTP target.
+management:
+  health:
+    mail:
+      enabled: false
+
+logging:
+  level:
+    cz.bezcisobe: DEBUG
+    org.springframework.security: DEBUG

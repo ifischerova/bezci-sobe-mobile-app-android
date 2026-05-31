@@ -1,0 +1,227 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Brand palette tokens — Tailwind reads these via rgb(var(...) / <alpha-value>). */
+:root {
+  /* primary — Tailwind "orange" */
+  --c-primary-50: 255 247 237;
+  --c-primary-100: 255 237 213;
+  --c-primary-200: 254 215 170;
+  --c-primary-300: 253 186 116;
+  --c-primary-400: 251 146 60;
+  --c-primary-500: 249 115 22;
+  --c-primary-600: 234 88 12;
+  --c-primary-700: 194 65 12;
+  --c-primary-800: 154 52 18;
+  --c-primary-900: 124 45 18;
+  /* accent — Tailwind "green" */
+  --c-accent-50: 240 253 244;
+  --c-accent-100: 220 252 231;
+  --c-accent-200: 187 247 208;
+  --c-accent-300: 134 239 172;
+  --c-accent-400: 74 222 128;
+  --c-accent-500: 34 197 94;
+  --c-accent-600: 22 163 74;
+  --c-accent-700: 21 128 61;
+  --c-accent-800: 22 101 52;
+  --c-accent-900: 20 83 45;
+}
+
+html.dark {
+  /* primary — Tailwind "violet" */
+  --c-primary-50: 245 243 255;
+  --c-primary-100: 237 233 254;
+  --c-primary-200: 221 214 254;
+  --c-primary-300: 196 181 253;
+  --c-primary-400: 167 139 250;
+  --c-primary-500: 139 92 246;
+  --c-primary-600: 124 58 237;
+  --c-primary-700: 109 40 217;
+  --c-primary-800: 91 33 182;
+  --c-primary-900: 76 29 149;
+  /* accent — Tailwind "sky" */
+  --c-accent-50: 240 249 255;
+  --c-accent-100: 224 242 254;
+  --c-accent-200: 186 230 253;
+  --c-accent-300: 125 211 252;
+  --c-accent-400: 56 189 248;
+  --c-accent-500: 14 165 233;
+  --c-accent-600: 2 132 199;
+  --c-accent-700: 3 105 161;
+  --c-accent-800: 7 89 133;
+  --c-accent-900: 12 74 110;
+}
+
+@layer base {
+  body {
+    @apply min-h-screen flex flex-col;
+    font-family: 'Inter', 'Segoe UI', 'Roboto', system-ui, -apple-system, sans-serif;
+    font-weight: 400;
+    line-height: 1.6;
+    margin: 0;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+
+  #root {
+    @apply flex flex-col min-h-screen w-full;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-bold;
+    line-height: 1.2;
+  }
+}
+
+@layer components {
+  /* Modern Button Styles */
+  .btn-primary-custom {
+    @apply bg-gradient-to-r from-primary-500 to-primary-600 hover:from-primary-600 hover:to-primary-700
+           text-white font-semibold py-3 px-6 rounded-xl shadow-md hover:shadow-lg
+           transform hover:-translate-y-0.5 transition-all duration-200 active:scale-95;
+  }
+
+  .btn-accent-custom {
+    @apply bg-gradient-to-r from-accent-500 to-accent-600 hover:from-accent-600 hover:to-accent-700
+           text-white font-semibold py-3 px-6 rounded-xl shadow-md hover:shadow-lg
+           transform hover:-translate-y-0.5 transition-all duration-200 active:scale-95;
+  }
+
+  .btn-outline-custom {
+    @apply border-2 border-primary-500 text-primary-600 hover:bg-primary-50
+           font-semibold py-3 px-6 rounded-xl transition-all duration-200
+           hover:shadow-md active:scale-95
+           dark:border-primary-400 dark:text-primary-300 dark:hover:bg-primary-900/30;
+  }
+
+  /* Modern Form Styles */
+  .form-input-custom {
+    @apply w-full p-3.5 rounded-xl border-2 border-gray-200 bg-white
+           hover:border-primary-300 focus:border-primary-500 focus:ring-4
+           focus:ring-primary-100 transition-all duration-200 outline-none
+           dark:bg-surface-850 dark:border-surface-700 dark:text-dark-50
+           dark:placeholder:text-dark-400 dark:hover:border-primary-400
+           dark:focus:border-primary-400 dark:focus:ring-primary-900/40;
+  }
+
+  .form-label-custom {
+    @apply block mb-2 text-sm font-semibold text-dark-700 dark:text-dark-200;
+  }
+
+  /* Glass Card Effect */
+  .glass-card {
+    @apply backdrop-blur-lg bg-white/80 border border-white/20 shadow-glass rounded-2xl
+           dark:bg-surface-900/70 dark:border-white/5 dark:shadow-glass-dark;
+  }
+
+  /* Modern Card */
+  .card-modern {
+    @apply bg-white rounded-2xl shadow-card hover:shadow-card-hover
+           transition-all duration-300 transform hover:-translate-y-1
+           dark:bg-surface-900 dark:shadow-black/30;
+  }
+
+  /* Feature Card */
+  .feature-card {
+    @apply bg-gradient-to-br from-white to-gray-50 rounded-2xl p-6
+           shadow-card hover:shadow-card-hover border border-gray-100
+           transition-all duration-300 transform hover:-translate-y-2 hover:scale-105
+           dark:from-surface-850 dark:to-surface-900 dark:border-white/5;
+  }
+
+  /* Section Container */
+  .section-container {
+    @apply max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8;
+  }
+}
+
+/* Modern Gradient Background — light */
+html:not(.dark) body {
+  background: linear-gradient(135deg,
+    #fff7ed 0%,
+    #ffedd5 25%,
+    #fed7aa 50%,
+    #fef3c7 75%,
+    #fef9c3 100%
+  );
+  background-attachment: fixed;
+  background-size: 400% 400%;
+  animation: gradientShift 15s ease infinite;
+}
+
+/* Modern Gradient Background — dark */
+html.dark body {
+  background: linear-gradient(135deg,
+    #0b1220 0%,
+    #101827 25%,
+    #1a2540 50%,
+    #0f1a2e 75%,
+    #0b1220 100%
+  );
+  background-attachment: fixed;
+  background-size: 400% 400%;
+  animation: gradientShift 15s ease infinite;
+  color: #e2e8f0;
+}
+
+@keyframes gradientShift {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+/* Smooth Scrolling */
+html {
+  scroll-behavior: smooth;
+}
+
+/* Custom Scrollbar */
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f5f9;
+}
+
+::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #f97316, #ea580c);
+  border-radius: 10px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #ea580c, #c2410c);
+}
+
+html.dark ::-webkit-scrollbar-track {
+  background: #1e293b;
+}
+
+html.dark ::-webkit-scrollbar-thumb {
+  background: linear-gradient(180deg, #8b5cf6, #6d28d9);
+}
+
+html.dark ::-webkit-scrollbar-thumb:hover {
+  background: linear-gradient(180deg, #a78bfa, #7c3aed);
+}
+
+/* Selection Color */
+::selection {
+  background-color: #fed7aa;
+  color: #7c2d12;
+}
+
+html.dark ::selection {
+  background-color: #4c1d95;
+  color: #ede9fe;
+}
+
+/* Link Hover Effect */
+a {
+  @apply transition-colors duration-200;
+}
