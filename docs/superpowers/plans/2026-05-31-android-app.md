@@ -1001,6 +1001,7 @@ import cz.bezcisobe.data.repository.RaceRepository
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.test.*
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -1032,21 +1033,27 @@ class RaceListViewModelTest {
         trackLength = NamedRefDto("l", "10K"), trackType = NamedRefDto("t", "Road"))
 
     @Test
+    fun `initial state is Loading`() = runTest {
+        val vm = RaceListViewModel(RaceRepository(FakeApi(listOf(dto)), FakeDao()))
+        assertTrue(vm.state.value is RaceListUiState.Loading)
+    }
+
+    @Test
     fun `loads races into Success state`() = runTest {
-        val repo = RaceRepository(FakeApi(listOf(dto)), FakeDao())
-        val vm = RaceListViewModel(repo)
-        vm.state.test {
-            assertTrue(awaitItem() is RaceListUiState.Loading)
-            val success = awaitItem() as RaceListUiState.Success
-            assertEquals(1, success.races.size)
-            cancelAndIgnoreRemainingEvents()
-        }
+        val vm = RaceListViewModel(RaceRepository(FakeApi(listOf(dto)), FakeDao()))
+        // Keep a subscriber alive so the WhileSubscribed stateIn upstream runs to completion,
+        // then assert the settled value (avoids racing the intermediate empty emission).
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { vm.state.collect {} }
+        advanceUntilIdle()
+        val success = vm.state.value as RaceListUiState.Success
+        assertEquals(1, success.races.size)
+        assertEquals("Praha 10K", success.races[0].name)
     }
 
     @Test
     fun `search filters by name`() = runTest {
-        val repo = RaceRepository(FakeApi(listOf(dto)), FakeDao())
-        val vm = RaceListViewModel(repo)
+        val vm = RaceListViewModel(RaceRepository(FakeApi(listOf(dto)), FakeDao()))
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { vm.state.collect {} }
         advanceUntilIdle()
         vm.onSearchChange("brno")
         advanceUntilIdle()
