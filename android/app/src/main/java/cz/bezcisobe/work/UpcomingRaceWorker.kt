@@ -39,12 +39,12 @@ class UpcomingRaceWorker @AssistedInject constructor(
         val mgr = ctx.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             mgr.createNotificationChannel(
-                NotificationChannel(channelId, "Závody", NotificationManager.IMPORTANCE_DEFAULT)
+                NotificationChannel(channelId, ctx.getString(R.string.notif_channel_races), NotificationManager.IMPORTANCE_DEFAULT)
             )
         }
         val notification = NotificationCompat.Builder(ctx, channelId)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
-            .setContentTitle("Blížící se závod")
+            .setContentTitle(ctx.getString(R.string.notif_upcoming_title))
             .setContentText("$name • $date")
             .setAutoCancel(true)
             .build()

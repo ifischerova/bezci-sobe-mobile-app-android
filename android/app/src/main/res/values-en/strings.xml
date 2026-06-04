@@ -15,4 +15,10 @@
     <string name="theme_light">Light</string>
     <string name="theme_dark">Dark</string>
     <string name="theme_system">System default</string>
+    <string name="retry">Try again</string>
+    <string name="race_type">Type: %1$s</string>
+    <string name="race_length">Distance: %1$s</string>
+    <string name="race_web">Web: %1$s</string>
+    <string name="notif_channel_races">Races</string>
+    <string name="notif_upcoming_title">Upcoming race</string>
 </resources>

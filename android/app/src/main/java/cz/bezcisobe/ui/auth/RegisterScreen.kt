@@ -13,8 +13,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import cz.bezcisobe.R
 
 @Composable
-fun RegisterScreen(onRegistered: () -> Unit, viewModel: AuthViewModel = hiltViewModel()) {
+fun RegisterScreen(onRegistered: () -> Unit, viewModel: AuthViewModel = hiltViewModel(), settingsViewModel: cz.bezcisobe.ui.settings.SettingsViewModel = androidx.hilt.navigation.compose.hiltViewModel()) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
+    val language by settingsViewModel.language.collectAsStateWithLifecycle()
     var username by rememberSaveable { mutableStateOf("") }
     var email by rememberSaveable { mutableStateOf("") }
     var password by rememberSaveable { mutableStateOf("") }
@@ -28,7 +29,7 @@ fun RegisterScreen(onRegistered: () -> Unit, viewModel: AuthViewModel = hiltView
         OutlinedTextField(password, { password = it }, label = { Text(stringResource(R.string.password)) }, singleLine = true, visualTransformation = PasswordVisualTransformation(), modifier = Modifier.fillMaxWidth())
         (state as? AuthUiState.Error)?.let { Text(it.message, color = MaterialTheme.colorScheme.error) }
         Button(
-            onClick = { viewModel.register(username, email, password, "cs") },
+            onClick = { viewModel.register(username, email, password, language) },
             enabled = state !is AuthUiState.Loading && username.isNotBlank() && email.isNotBlank() && password.length >= 6,
             modifier = Modifier.fillMaxWidth(),
         ) { Text(stringResource(R.string.register)) }

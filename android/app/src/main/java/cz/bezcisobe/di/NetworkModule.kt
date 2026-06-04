@@ -26,7 +26,9 @@ object NetworkModule {
 
     @Provides @Singleton
     fun provideOkHttp(tokenProvider: TokenProvider): OkHttpClient {
-        val logging = HttpLoggingInterceptor().apply { level = HttpLoggingInterceptor.Level.BODY }
+        val logging = HttpLoggingInterceptor().apply {
+            level = if (cz.bezcisobe.BuildConfig.DEBUG) HttpLoggingInterceptor.Level.BODY else HttpLoggingInterceptor.Level.NONE
+        }
         return OkHttpClient.Builder()
             .addInterceptor(AuthInterceptor(tokenProvider))
             .addInterceptor(logging)

@@ -5,7 +5,9 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import cz.bezcisobe.R
 
 @Composable
 fun LoadingState(modifier: Modifier = Modifier) {
@@ -17,7 +19,7 @@ fun ErrorState(message: String, onRetry: () -> Unit, modifier: Modifier = Modifi
     Column(modifier.fillMaxSize().padding(24.dp), Arrangement.Center, Alignment.CenterHorizontally) {
         Text(message, style = MaterialTheme.typography.bodyLarge)
         Spacer(Modifier.height(12.dp))
-        Button(onClick = onRetry) { Text("Zkusit znovu") }
+        Button(onClick = onRetry) { Text(stringResource(R.string.retry)) }
     }
 }
 

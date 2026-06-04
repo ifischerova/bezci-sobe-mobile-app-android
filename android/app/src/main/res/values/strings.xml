@@ -15,4 +15,10 @@
     <string name="theme_light">Světlý</string>
     <string name="theme_dark">Tmavý</string>
     <string name="theme_system">Podle systému</string>
+    <string name="retry">Zkusit znovu</string>
+    <string name="race_type">Typ: %1$s</string>
+    <string name="race_length">Délka: %1$s</string>
+    <string name="race_web">Web: %1$s</string>
+    <string name="notif_channel_races">Závody</string>
+    <string name="notif_upcoming_title">Blížící se závod</string>
 </resources>
