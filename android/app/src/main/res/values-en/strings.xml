@@ -1,0 +1,18 @@
+<resources>
+    <string name="app_name">Runners Together</string>
+    <string name="search_races">Search races</string>
+    <string name="no_races">No races to show</string>
+    <string name="login">Log in</string>
+    <string name="logout">Log out</string>
+    <string name="register">Register</string>
+    <string name="username">Username</string>
+    <string name="password">Password</string>
+    <string name="email">Email</string>
+    <string name="no_account_register">No account? Register</string>
+    <string name="settings">Settings</string>
+    <string name="language">Language</string>
+    <string name="theme">Theme</string>
+    <string name="theme_light">Light</string>
+    <string name="theme_dark">Dark</string>
+    <string name="theme_system">System default</string>
+</resources>

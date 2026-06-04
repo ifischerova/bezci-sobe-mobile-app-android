@@ -1,3 +1,18 @@
 <resources>
-    <string name="app_name">Bezci Sobe</string>
+    <string name="app_name">Běžci sobě</string>
+    <string name="search_races">Hledat závody</string>
+    <string name="no_races">Žádné závody k zobrazení</string>
+    <string name="login">Přihlásit</string>
+    <string name="logout">Odhlásit</string>
+    <string name="register">Registrovat</string>
+    <string name="username">Uživatelské jméno</string>
+    <string name="password">Heslo</string>
+    <string name="email">E-mail</string>
+    <string name="no_account_register">Nemáte účet? Zaregistrujte se</string>
+    <string name="settings">Nastavení</string>
+    <string name="language">Jazyk</string>
+    <string name="theme">Motiv</string>
+    <string name="theme_light">Světlý</string>
+    <string name="theme_dark">Tmavý</string>
+    <string name="theme_system">Podle systému</string>
 </resources>
