@@ -53,9 +53,13 @@ class MainActivity : ComponentActivity() {
                 Configuration(baseContext.resources.configuration).apply { setLocale(Locale(lang)) }
             }
             val localizedContext = remember(lang) { baseContext.createConfigurationContext(localizedConfig) }
+            // NOTE: do NOT override LocalContext with createConfigurationContext — that
+            // returns a plain ContextImpl (not the Activity) and breaks hiltViewModel()
+            // ("Expected an activity context for creating a HiltViewModelFactory").
+            // stringResource reads LocalResources in this Compose version, so overriding
+            // LocalResources + LocalConfiguration is enough to switch the in-app language.
             CompositionLocalProvider(
                 LocalConfiguration provides localizedConfig,
-                LocalContext provides localizedContext,
                 LocalResources provides localizedContext.resources,
             ) {
                 BezciSobeTheme(darkTheme = dark) { BezciNavGraph() }
