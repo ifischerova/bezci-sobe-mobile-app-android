@@ -18,18 +18,34 @@ import cz.bezcisobe.ui.components.*
 fun RaceListScreen(onRaceClick: (String) -> Unit, viewModel: RaceListViewModel = hiltViewModel()) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     var search by rememberSaveable { mutableStateOf("") }
+    RaceListContent(
+        state = state,
+        search = search,
+        onSearch = { search = it; viewModel.onSearchChange(it) },
+        onRetry = viewModel::refresh,
+        onRaceClick = onRaceClick,
+    )
+}
 
+@Composable
+fun RaceListContent(
+    state: RaceListUiState,
+    search: String,
+    onSearch: (String) -> Unit,
+    onRetry: () -> Unit,
+    onRaceClick: (String) -> Unit,
+) {
     Column(Modifier.fillMaxSize()) {
         OutlinedTextField(
             value = search,
-            onValueChange = { search = it; viewModel.onSearchChange(it) },
+            onValueChange = onSearch,
             label = { Text(stringResource(R.string.search_races)) },
             singleLine = true,
             modifier = Modifier.fillMaxWidth().padding(16.dp),
         )
         when (val s = state) {
             is RaceListUiState.Loading -> LoadingState()
-            is RaceListUiState.Error -> ErrorState(s.message, onRetry = viewModel::refresh)
+            is RaceListUiState.Error -> ErrorState(s.message, onRetry = onRetry)
             is RaceListUiState.Success ->
                 if (s.races.isEmpty()) EmptyState(stringResource(R.string.no_races))
                 else LazyColumn(
