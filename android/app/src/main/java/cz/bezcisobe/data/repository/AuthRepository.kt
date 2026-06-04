@@ -11,17 +11,17 @@ import javax.inject.Inject
 class AuthRepository @Inject constructor(
     private val api: ApiService,
     private val settings: SettingsRepository,
-) {
-    val isLoggedIn: Flow<Boolean> = settings.token.map { !it.isNullOrBlank() }
+) : AuthRepositoryContract {
+    override val isLoggedIn: Flow<Boolean> = settings.token.map { !it.isNullOrBlank() }
 
-    suspend fun login(username: String, password: String) {
+    override suspend fun login(username: String, password: String) {
         val res = api.login(LoginRequestDto(username, password))
         settings.setToken(res.token)
     }
 
-    suspend fun register(username: String, email: String, password: String, language: String) {
+    override suspend fun register(username: String, email: String, password: String, language: String) {
         api.register(RegisterRequestDto(username, email, password, language))
     }
 
-    suspend fun logout() = settings.setToken(null)
+    override suspend fun logout() { settings.setToken(null) }
 }
