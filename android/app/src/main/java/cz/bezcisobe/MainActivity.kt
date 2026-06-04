@@ -11,6 +11,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import cz.bezcisobe.data.local.SettingsRepository
 import cz.bezcisobe.ui.navigation.BezciNavGraph
 import cz.bezcisobe.ui.theme.BezciSobeTheme
@@ -40,6 +41,7 @@ class MainActivity : ComponentActivity() {
             CompositionLocalProvider(
                 LocalConfiguration provides localizedConfig,
                 LocalContext provides localizedContext,
+                LocalResources provides localizedContext.resources,
             ) {
                 BezciSobeTheme(darkTheme = dark) { BezciNavGraph() }
             }
