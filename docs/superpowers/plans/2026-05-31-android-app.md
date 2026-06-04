@@ -12,10 +12,19 @@
 > `C:\Users\iva.fischerova\repositories\bezci-sobe-android\android\` unless stated otherwise.
 > The Spring Boot backend lives at `..\backend\` in the same clone and is only *run*, never changed.
 
-> **Version note:** Pin the versions shown in Task 0.3. If Android Studio's project
-> wizard scaffolds newer ones, keep the wizard's AGP/Kotlin and only add the libraries
-> listed. Do not mix Kotlin 1.9 with the Compose plugin syntax shown (that syntax is
-> Kotlin 2.0+).
+> **Version note (UPDATED 2026-06-04 against the actual scaffold):** The wizard
+> generated a newer toolchain than this plan originally assumed:
+> **AGP 9.2.1, Kotlin 2.2.10, Compose BOM 2026.02.01, compileSdk 36, minSdk 26,
+> Java 11 compileOptions.** KEEP these. The fixed library versions in Task 0.3 below
+> are now STALE — treat them as a shopping list, not exact pins. The KSP, Hilt, and
+> kotlin-serialization plugin versions MUST be chosen to match Kotlin 2.2.10 / AGP 9,
+> and verified by a successful `./gradlew :app:assembleDebug`. Notes:
+> - KSP version string tracks Kotlin: use the `2.2.10-*` KSP release (look up the exact suffix).
+> - The scaffold's `libs.versions.toml` does NOT declare a `kotlin-android` plugin alias and
+>   still compiles Kotlin (AGP 9 + the compose plugin pull it in); add a `kotlin-android`
+>   alias only if a build error demands it.
+> - AGP 9 uses new DSL (`compileSdk { version = release(36) {...} }`,
+>   `buildTypes { release { optimization { enable = false } } }`) — do not "fix" these.
 
 ---
 
