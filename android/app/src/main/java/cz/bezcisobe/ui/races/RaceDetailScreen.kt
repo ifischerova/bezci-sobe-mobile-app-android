@@ -34,15 +34,25 @@ fun RaceDetailScreen(viewModel: RaceDetailViewModel = hiltViewModel()) {
     val currentUsername by viewModel.currentUsername.collectAsStateWithLifecycle()
     val createError by viewModel.createError.collectAsStateWithLifecycle()
     val isSubmitting by viewModel.isSubmitting.collectAsStateWithLifecycle()
+    val actionError by viewModel.actionError.collectAsStateWithLifecycle()
 
     var showCreateDialog by remember { mutableStateOf(false) }
     var pendingDeleteId by remember { mutableStateOf<String?>(null) }
+
+    val snackbarHostState = remember { SnackbarHostState() }
+    LaunchedEffect(actionError) {
+        actionError?.let {
+            snackbarHostState.showSnackbar(it)
+            viewModel.clearActionError()
+        }
+    }
 
     when (val s = state) {
         is RaceDetailUiState.Loading -> LoadingState()
         is RaceDetailUiState.NotFound -> EmptyState(stringResource(R.string.race_not_found))
         is RaceDetailUiState.Success -> {
             Scaffold(
+                snackbarHost = { SnackbarHost(snackbarHostState) },
                 floatingActionButton = {
                     if (isLoggedIn) {
                         ExtendedFloatingActionButton(

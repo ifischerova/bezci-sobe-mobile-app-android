@@ -42,6 +42,13 @@ class RaceDetailViewModel @Inject constructor(
 
     private val raceId: String = checkNotNull(savedStateHandle["raceId"])
 
+    /**
+     * Backend race IDs are numeric (BIGSERIAL); the rides API is keyed by [Long].
+     * Parse once and treat an unexpected non-numeric id as "rides unavailable"
+     * rather than letting [NumberFormatException] surface as a misleading network error.
+     */
+    private val raceIdLong: Long? = raceId.toLongOrNull()
+
     private val _state = MutableStateFlow<RaceDetailUiState>(RaceDetailUiState.Loading)
     val state: StateFlow<RaceDetailUiState> = _state
 
@@ -55,6 +62,10 @@ class RaceDetailViewModel @Inject constructor(
     /** True once a create call is in flight, to disable the submit button. */
     private val _isSubmitting = MutableStateFlow(false)
     val isSubmitting: StateFlow<Boolean> = _isSubmitting
+
+    /** One-shot error from an accept/cancel/delete action; null once consumed. */
+    private val _actionError = MutableStateFlow<String?>(null)
+    val actionError: StateFlow<String?> = _actionError
 
     val isLoggedIn: StateFlow<Boolean> =
         auth.isLoggedIn.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), false)
@@ -74,10 +85,15 @@ class RaceDetailViewModel @Inject constructor(
     }
 
     fun loadRides() {
+        val id = raceIdLong
+        if (id == null) {
+            _rides.value = RidesUiState.Error("Invalid race id")
+            return
+        }
         viewModelScope.launch {
             _rides.value = RidesUiState.Loading
             try {
-                _rides.value = RidesUiState.Success(rideRepository.getRides(raceId.toLong()))
+                _rides.value = RidesUiState.Success(rideRepository.getRides(id))
             } catch (e: Exception) {
                 _rides.value = RidesUiState.Error(e.message ?: "Network error")
             }
@@ -85,6 +101,8 @@ class RaceDetailViewModel @Inject constructor(
     }
 
     fun clearCreateError() { _createError.value = null }
+
+    fun clearActionError() { _actionError.value = null }
 
     /**
      * Create an OFFER or REQUEST. For REQUEST, [car] is ignored and seats is forced to 1.
@@ -99,12 +117,17 @@ class RaceDetailViewModel @Inject constructor(
         notes: String?,
         onSuccess: () -> Unit,
     ) {
+        val id = raceIdLong
+        if (id == null) {
+            _createError.value = "Invalid race id"
+            return
+        }
         _isSubmitting.value = true
         _createError.value = null
         viewModelScope.launch {
             try {
                 val request = CreateRideRequestDto(
-                    raceId = raceId.toLong(),
+                    raceId = id,
                     type = type.name,
                     from = from.trim(),
                     to = to?.trim()?.ifBlank { null },
@@ -133,9 +156,13 @@ class RaceDetailViewModel @Inject constructor(
         viewModelScope.launch {
             try {
                 action()
-            } catch (_: Exception) {
-                // Surface failures by refreshing; the list reflects the true server state.
+            } catch (e: HttpException) {
+                _actionError.value = parseServerError(e)
+            } catch (e: Exception) {
+                _actionError.value = e.message ?: "Network error"
             } finally {
+                // Always refresh so the list reflects the true server state,
+                // whether the action succeeded or failed.
                 loadRides()
             }
         }
