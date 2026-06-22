@@ -92,7 +92,7 @@ class RideServiceTest {
     void acceptRide_success() {
         when(rideRepository.findById(rideId)).thenReturn(Optional.of(ride));
         when(userRepository.findById(passengerId)).thenReturn(Optional.of(passenger));
-        when(rideRepository.save(any())).thenReturn(ride);
+        when(rideRepository.saveAndFlush(any())).thenReturn(ride);
         when(rideMapper.toResponse(any())).thenReturn(
                 new RideResponse(rideId.toString(), "1", false, ownerId.toString(),
                         "owner", "Owner", "Tester", "OFFER",
@@ -121,6 +121,19 @@ class RideServiceTest {
         when(userRepository.findById(passengerId)).thenReturn(Optional.of(passenger));
 
         assertThrows(BadRequestException.class, () -> rideService.acceptRide(rideId, passengerId));
+    }
+
+    @Test
+    void acceptRide_optimisticLockConflict_translatedToBadRequest() {
+        when(rideRepository.findById(rideId)).thenReturn(Optional.of(ride));
+        when(userRepository.findById(passengerId)).thenReturn(Optional.of(passenger));
+        when(rideRepository.saveAndFlush(any()))
+                .thenThrow(new org.springframework.orm.ObjectOptimisticLockingFailureException(Ride.class, rideId));
+
+        BadRequestException ex = assertThrows(BadRequestException.class,
+                () -> rideService.acceptRide(rideId, passengerId));
+        assertEquals("error.ride.seat_conflict", ex.getMessageKey(),
+                "Concurrent seat booking should surface as a clean 400, not a 500");
     }
 
     @Test
@@ -256,7 +269,7 @@ class RideServiceTest {
     void acceptRide_sendsEmailToDriver() {
         when(rideRepository.findById(rideId)).thenReturn(Optional.of(ride));
         when(userRepository.findById(passengerId)).thenReturn(Optional.of(passenger));
-        when(rideRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(rideRepository.saveAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
         when(rideMapper.toResponse(any())).thenReturn(
                 new RideResponse(rideId.toString(), "1", false, ownerId.toString(),
                         "owner", "Oto", "Vlk", "OFFER",
@@ -278,7 +291,7 @@ class RideServiceTest {
     void acceptRide_mailFailure_doesNotRollback() {
         when(rideRepository.findById(rideId)).thenReturn(Optional.of(ride));
         when(userRepository.findById(passengerId)).thenReturn(Optional.of(passenger));
-        when(rideRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(rideRepository.saveAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
         when(rideMapper.toResponse(any())).thenReturn(
                 new RideResponse(rideId.toString(), "1", false, ownerId.toString(),
                         "owner", "Oto", "Vlk", "OFFER",
@@ -298,7 +311,7 @@ class RideServiceTest {
         ride.getPassengers().add(passenger);
         ride.setOccupiedSeats(1);
         when(rideRepository.findById(rideId)).thenReturn(Optional.of(ride));
-        when(rideRepository.save(any())).thenAnswer(inv -> inv.getArgument(0));
+        when(rideRepository.saveAndFlush(any())).thenAnswer(inv -> inv.getArgument(0));
         when(rideMapper.toResponse(any())).thenReturn(
                 new RideResponse(rideId.toString(), "1", false, ownerId.toString(),
                         "owner", "Oto", "Vlk", "OFFER",

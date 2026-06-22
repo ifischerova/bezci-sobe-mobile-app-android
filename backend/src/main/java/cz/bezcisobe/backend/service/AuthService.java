@@ -80,13 +80,20 @@ public class AuthService {
 
     @Transactional
     public UserResponse register(RegisterRequest request) {
+        // Username feedback is intentionally specific — usernames are public on the
+        // platform, so confirming one is taken leaks nothing new.
         if (userRepository.existsByUsername(request.username())) {
             log.warn("Registration rejected: username '{}' already taken", request.username());
             throw DuplicateResourceException.of("error.auth.username_exists");
         }
+        // Email collisions must NOT be distinguishable from a generic conflict:
+        // a specific "email already registered" message lets an attacker enumerate
+        // which addresses have accounts. We log the real reason server-side but
+        // surface only a generic conflict, consistent with the silent
+        // forgot-password / resend-verification behavior.
         if (userRepository.existsByEmail(request.email())) {
             log.warn("Registration rejected: email '{}' already taken", request.email());
-            throw DuplicateResourceException.of("error.auth.email_exists");
+            throw DuplicateResourceException.of("error.auth.registration_conflict");
         }
 
         String lang = request.language() == null || request.language().isBlank() ? "cs" : request.language();

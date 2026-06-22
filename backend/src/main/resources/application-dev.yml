@@ -2,6 +2,12 @@ spring:
   jpa:
     show-sql: true
 
+  # Dev also layers the demo seed data (known-credential accounts, sample races
+  # and rides) on top of the structural migrations. These live in db/seed and
+  # are NEVER on the production classpath:db/migration-only path.
+  flyway:
+    locations: classpath:db/migration,classpath:db/seed
+
 # Default to log-only mail in dev so the backend boots without SMTP credentials.
 # Set MAIL_LOG_ONLY=false and provide MAIL_USERNAME / MAIL_PASSWORD (Mailtrap
 # sandbox works out of the box) to actually deliver the verification + reset emails.

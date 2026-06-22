@@ -15,6 +15,7 @@ import cz.bezcisobe.backend.repository.RideRepository;
 import cz.bezcisobe.backend.repository.UserRepository;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.dao.OptimisticLockingFailureException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -48,7 +49,7 @@ public class RideService {
      */
     @Transactional(readOnly = true)
     public List<RideResponse> getRidesByRace(Long raceId) {
-        return rideRepository.findByRaceId(raceId).stream()
+        return rideRepository.findByRaceIdWithUserAndRace(raceId).stream()
                 .map(rideMapper::toResponse)
                 .toList();
     }
@@ -200,7 +201,7 @@ public class RideService {
 
         ride.getPassengers().add(passenger);
         ride.setOccupiedSeats(ride.getOccupiedSeats() + 1);
-        Ride saved = rideRepository.save(ride);
+        Ride saved = saveWithSeatConcurrencyGuard(ride);
         log.info("User {} accepted ride {} (now {}/{} seats)",
                 passengerId, rideId, saved.getOccupiedSeats(), saved.getAvailableSeats());
 
@@ -229,13 +230,30 @@ public class RideService {
         }
 
         ride.setOccupiedSeats(ride.getOccupiedSeats() - 1);
-        Ride saved = rideRepository.save(ride);
+        Ride saved = saveWithSeatConcurrencyGuard(ride);
         log.info("User {} cancelled their seat on ride {}", passengerId, rideId);
 
         if (passenger != null) {
             notifyDriverOfCancellation(saved.getUser(), passenger, saved.getRace());
         }
         return rideMapper.toResponse(saved);
+    }
+
+    /**
+     * Persists a ride whose {@code occupied_seats} was just mutated under the
+     * optimistic lock. If another transaction changed the same ride concurrently,
+     * the {@code @Version} bump triggers an {@link OptimisticLockingFailureException};
+     * we translate it into a clean 400 ("no seats / try again") instead of a 500 so
+     * the caller can simply retry.
+     */
+    private Ride saveWithSeatConcurrencyGuard(Ride ride) {
+        try {
+            return rideRepository.saveAndFlush(ride);
+        } catch (OptimisticLockingFailureException e) {
+            log.warn("Concurrent seat update on ride {} lost the optimistic lock: {}",
+                    ride.getId(), e.getMessage());
+            throw BadRequestException.of("error.ride.seat_conflict");
+        }
     }
 
     private RideType parseType(String value) {

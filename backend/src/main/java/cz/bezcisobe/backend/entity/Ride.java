@@ -55,6 +55,14 @@ public class Ride {
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
 
+    // Optimistic lock guard. Concurrent acceptRide / cancelRideAcceptance calls
+    // do a read-check-write on occupied_seats; the version bump makes the second
+    // committer fail with OptimisticLockingFailureException instead of silently
+    // overbooking the ride.
+    @Version
+    @Column(name = "version", nullable = false)
+    private Long version;
+
     @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(
             name = "ride_passengers",
