@@ -2,10 +2,12 @@ package cz.bezcisobe.ui.navigation
 
 import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Modifier
 import androidx.navigation.NavType
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
+import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
 import cz.bezcisobe.ui.auth.LoginScreen
@@ -17,7 +19,19 @@ import cz.bezcisobe.ui.settings.SettingsScreen
 @Composable
 fun BezciNavGraph() {
     val nav = rememberNavController()
+    val backStackEntry by nav.currentBackStackEntryAsState()
+    val onList = backStackEntry?.destination?.route.let { it == null || it == Routes.RACE_LIST }
     AppScaffold(
+        canNavigateBack = !onList,
+        onBack = { nav.popBackStack() },
+        onHome = {
+            if (!onList) {
+                nav.navigate(Routes.RACE_LIST) {
+                    popUpTo(Routes.RACE_LIST) { inclusive = false }
+                    launchSingleTop = true
+                }
+            }
+        },
         onLogin = { nav.navigate(Routes.LOGIN) },
         onSettings = { nav.navigate(Routes.SETTINGS) },
     ) { padding ->
