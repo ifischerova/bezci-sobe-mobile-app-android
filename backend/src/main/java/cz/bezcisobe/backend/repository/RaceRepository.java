@@ -36,8 +36,9 @@ public interface RaceRepository extends JpaRepository<Race, Long> {
     @Query("""
             SELECT r FROM Race r
             LEFT JOIN FETCH r.raceCalendar
-            WHERE (:query IS NULL OR LOWER(r.name)  LIKE LOWER(CONCAT('%', :query, '%'))
-                                  OR LOWER(r.place) LIKE LOWER(CONCAT('%', :query, '%')))
+            WHERE (CAST(:query AS string) IS NULL
+                   OR LOWER(r.name)  LIKE LOWER(CONCAT('%', CAST(:query AS string), '%'))
+                   OR LOWER(r.place) LIKE LOWER(CONCAT('%', CAST(:query AS string), '%')))
               AND (:fromDate IS NULL OR r.date >= :fromDate)
               AND (:trackTypeId IS NULL OR r.trackType.id = :trackTypeId)
             """)
