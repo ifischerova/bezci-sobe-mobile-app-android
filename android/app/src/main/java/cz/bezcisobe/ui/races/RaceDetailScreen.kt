@@ -1,13 +1,18 @@
 package cz.bezcisobe.ui.races
 
+import android.content.Intent
+import android.net.Uri
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -109,6 +114,7 @@ private fun RaceDetailContent(
     onDeleteRequest: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
+    val context = LocalContext.current
     LazyColumn(
         modifier = modifier.fillMaxSize(),
         contentPadding = PaddingValues(24.dp),
@@ -119,7 +125,17 @@ private fun RaceDetailContent(
             Text("${race.place} • ${race.date}${race.startTime?.let { " $it" } ?: ""}")
             race.trackType?.let { Text(stringResource(R.string.race_type, it)) }
             race.trackLength?.let { Text(stringResource(R.string.race_length, it)) }
-            race.web?.let { Text(stringResource(R.string.race_web, it)) }
+            race.web?.let { web ->
+                Text(
+                    text = stringResource(R.string.race_web, web),
+                    color = MaterialTheme.colorScheme.primary,
+                    textDecoration = TextDecoration.Underline,
+                    modifier = Modifier.clickable {
+                        val url = if (web.startsWith("http", ignoreCase = true)) web else "https://$web"
+                        runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) }
+                    },
+                )
+            }
         }
 
         item {
