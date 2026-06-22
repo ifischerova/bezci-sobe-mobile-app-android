@@ -31,6 +31,20 @@ private class DetailFakeApi : ApiService {
     override suspend fun login(body: cz.bezcisobe.data.remote.dto.LoginRequestDto) = throw NotImplementedError()
     override suspend fun register(body: cz.bezcisobe.data.remote.dto.RegisterRequestDto) = throw NotImplementedError()
     override suspend fun me() = throw NotImplementedError()
+    override suspend fun getRides(raceId: Long) = emptyList<cz.bezcisobe.data.remote.dto.RideDto>()
+    override suspend fun createRide(body: cz.bezcisobe.data.remote.dto.CreateRideRequestDto) = throw NotImplementedError()
+    override suspend fun deleteRide(id: String) = throw NotImplementedError()
+    override suspend fun acceptRide(id: String) = throw NotImplementedError()
+    override suspend fun cancelRide(id: String) = throw NotImplementedError()
+}
+
+private class DetailFakeAuth : cz.bezcisobe.data.repository.AuthRepositoryContract {
+    override val isLoggedIn = MutableStateFlow(false)
+    override val currentUserId = MutableStateFlow<String?>(null)
+    override val currentUsername = MutableStateFlow<String?>(null)
+    override suspend fun login(username: String, password: String) {}
+    override suspend fun register(username: String, email: String, password: String, language: String) {}
+    override suspend fun logout() {}
 }
 
 class RaceDetailViewModelTest {
@@ -45,10 +59,14 @@ class RaceDetailViewModelTest {
     )
 
     private fun repo(dao: RaceDao) = RaceRepository(DetailFakeApi(), dao, emptySource)
+    private fun rideRepo() = cz.bezcisobe.data.repository.RideRepository(DetailFakeApi())
 
     @Test
     fun `Success when race found in cache`() = runTest {
-        val vm = RaceDetailViewModel(repo(DetailFakeDao(listOf(entity))), SavedStateHandle(mapOf("raceId" to "1")))
+        val vm = RaceDetailViewModel(
+            repo(DetailFakeDao(listOf(entity))), rideRepo(), DetailFakeAuth(),
+            SavedStateHandle(mapOf("raceId" to "1")),
+        )
         advanceUntilIdle()
         val state = vm.state.value
         assertTrue(state is RaceDetailUiState.Success)
@@ -57,7 +75,10 @@ class RaceDetailViewModelTest {
 
     @Test
     fun `NotFound when race id absent`() = runTest {
-        val vm = RaceDetailViewModel(repo(DetailFakeDao(emptyList())), SavedStateHandle(mapOf("raceId" to "999")))
+        val vm = RaceDetailViewModel(
+            repo(DetailFakeDao(emptyList())), rideRepo(), DetailFakeAuth(),
+            SavedStateHandle(mapOf("raceId" to "999")),
+        )
         advanceUntilIdle()
         assertTrue(vm.state.value is RaceDetailUiState.NotFound)
     }

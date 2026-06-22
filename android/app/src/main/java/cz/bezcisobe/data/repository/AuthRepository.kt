@@ -13,15 +13,21 @@ class AuthRepository @Inject constructor(
     private val settings: SettingsRepository,
 ) : AuthRepositoryContract {
     override val isLoggedIn: Flow<Boolean> = settings.token.map { !it.isNullOrBlank() }
+    override val currentUserId: Flow<String?> = settings.userId
+    override val currentUsername: Flow<String?> = settings.username
 
     override suspend fun login(username: String, password: String) {
         val res = api.login(LoginRequestDto(username, password))
         settings.setToken(res.token)
+        settings.setSession(res.userId, res.username)
     }
 
     override suspend fun register(username: String, email: String, password: String, language: String) {
         api.register(RegisterRequestDto(username, email, password, language))
     }
 
-    override suspend fun logout() { settings.setToken(null) }
+    override suspend fun logout() {
+        settings.setToken(null)
+        settings.setSession(null, null)
+    }
 }

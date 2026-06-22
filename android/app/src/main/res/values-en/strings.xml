@@ -22,4 +22,40 @@
     <string name="race_not_found">Race not found</string>
     <string name="notif_channel_races">Races</string>
     <string name="notif_upcoming_title">Upcoming race</string>
+
+    <!-- Carpooling / rides -->
+    <string name="rides_title">Carpooling</string>
+    <string name="rides_offers">Ride offers</string>
+    <string name="rides_requests">Looking for a ride</string>
+    <string name="rides_empty">No rides yet. Be the first!</string>
+    <string name="rides_login_hint">Log in to offer or request a ride.</string>
+    <string name="rides_error">Couldn\'t load rides</string>
+    <string name="ride_type_offer">Offering a ride</string>
+    <string name="ride_type_request">Looking for a ride</string>
+    <string name="ride_route">%1$s → %2$s</string>
+    <string name="ride_seats_free">%1$d seats free</string>
+    <string name="ride_seats_taken">%1$d/%2$d taken</string>
+    <string name="ride_full">Full</string>
+    <string name="ride_car">Car: %1$s</string>
+    <string name="ride_notes">Note: %1$s</string>
+    <string name="ride_accept">Reserve a seat</string>
+    <string name="ride_cancel">Cancel reservation</string>
+    <string name="ride_delete">Delete</string>
+    <string name="ride_delete_confirm_title">Delete ride?</string>
+    <string name="ride_delete_confirm_text">Are you sure you want to delete this ride?</string>
+    <string name="ride_create">Add ride</string>
+    <string name="ride_create_offer">Create offer</string>
+    <string name="ride_create_request">Create request</string>
+    <string name="ride_form_type">Type</string>
+    <string name="ride_form_from">From</string>
+    <string name="ride_form_to">To (optional)</string>
+    <string name="ride_form_car">Car</string>
+    <string name="ride_form_seats">Available seats</string>
+    <string name="ride_form_notes">Note (optional)</string>
+    <string name="ride_form_from_required">Enter a departure place</string>
+    <string name="ride_form_car_required">Enter a car for a ride offer</string>
+    <string name="ride_form_seats_invalid">Seats must be between 1 and 10</string>
+    <string name="cancel">Cancel</string>
+    <string name="save">Save</string>
+    <string name="delete">Delete</string>
 </resources>

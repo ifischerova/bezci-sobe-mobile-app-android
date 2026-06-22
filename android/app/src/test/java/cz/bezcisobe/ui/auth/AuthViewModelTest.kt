@@ -12,6 +12,8 @@ import org.junit.Test
 private class FakeAuthRepo(var failLogin: Boolean = false) : AuthRepositoryContract {
     val loggedIn = MutableStateFlow(false)
     override val isLoggedIn = loggedIn
+    override val currentUserId = MutableStateFlow<String?>(null)
+    override val currentUsername = MutableStateFlow<String?>(null)
     override suspend fun login(username: String, password: String) {
         if (failLogin) throw RuntimeException("Bad credentials"); loggedIn.value = true
     }

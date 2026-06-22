@@ -22,4 +22,40 @@
     <string name="race_not_found">Závod nebyl nalezen</string>
     <string name="notif_channel_races">Závody</string>
     <string name="notif_upcoming_title">Blížící se závod</string>
+
+    <!-- Carpooling / rides -->
+    <string name="rides_title">Spolujízda</string>
+    <string name="rides_offers">Nabídky odvozu</string>
+    <string name="rides_requests">Hledám odvoz</string>
+    <string name="rides_empty">Zatím žádné spolujízdy. Buďte první!</string>
+    <string name="rides_login_hint">Pro nabídnutí nebo vyhledání odvozu se přihlaste.</string>
+    <string name="rides_error">Spolujízdy se nepodařilo načíst</string>
+    <string name="ride_type_offer">Nabízím odvoz</string>
+    <string name="ride_type_request">Hledám odvoz</string>
+    <string name="ride_route">%1$s → %2$s</string>
+    <string name="ride_seats_free">%1$d volných míst</string>
+    <string name="ride_seats_taken">%1$d/%2$d obsazeno</string>
+    <string name="ride_full">Obsazeno</string>
+    <string name="ride_car">Auto: %1$s</string>
+    <string name="ride_notes">Poznámka: %1$s</string>
+    <string name="ride_accept">Rezervovat místo</string>
+    <string name="ride_cancel">Zrušit rezervaci</string>
+    <string name="ride_delete">Smazat</string>
+    <string name="ride_delete_confirm_title">Smazat spolujízdu?</string>
+    <string name="ride_delete_confirm_text">Opravdu chcete tuto spolujízdu smazat?</string>
+    <string name="ride_create">Přidat spolujízdu</string>
+    <string name="ride_create_offer">Vytvořit nabídku</string>
+    <string name="ride_create_request">Vytvořit poptávku</string>
+    <string name="ride_form_type">Typ</string>
+    <string name="ride_form_from">Odkud</string>
+    <string name="ride_form_to">Kam (nepovinné)</string>
+    <string name="ride_form_car">Auto</string>
+    <string name="ride_form_seats">Počet volných míst</string>
+    <string name="ride_form_notes">Poznámka (nepovinné)</string>
+    <string name="ride_form_from_required">Zadejte místo odjezdu</string>
+    <string name="ride_form_car_required">Pro nabídku odvozu zadejte auto</string>
+    <string name="ride_form_seats_invalid">Počet míst musí být 1 až 10</string>
+    <string name="cancel">Zrušit</string>
+    <string name="save">Uložit</string>
+    <string name="delete">Smazat</string>
 </resources>

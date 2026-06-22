@@ -26,11 +26,15 @@ class SettingsRepository @Inject constructor(
 
     private object Keys {
         val TOKEN = stringPreferencesKey("jwt_token")
+        val USER_ID = stringPreferencesKey("user_id")
+        val USERNAME = stringPreferencesKey("username")
         val LANGUAGE = stringPreferencesKey("language")
         val THEME = stringPreferencesKey("theme") // LIGHT | DARK | SYSTEM
     }
 
     val token: Flow<String?> = context.dataStore.data.map { it[Keys.TOKEN] }
+    val userId: Flow<String?> = context.dataStore.data.map { it[Keys.USER_ID] }
+    val username: Flow<String?> = context.dataStore.data.map { it[Keys.USERNAME] }
     val language: Flow<String> = context.dataStore.data.map { it[Keys.LANGUAGE] ?: "cs" }
     val theme: Flow<String> = context.dataStore.data.map { it[Keys.THEME] ?: "SYSTEM" }
 
@@ -56,6 +60,13 @@ class SettingsRepository @Inject constructor(
         cachedToken = value
         context.dataStore.edit {
             if (value == null) it.remove(Keys.TOKEN) else it[Keys.TOKEN] = value
+        }
+    }
+
+    suspend fun setSession(userId: String?, username: String?) {
+        context.dataStore.edit {
+            if (userId == null) it.remove(Keys.USER_ID) else it[Keys.USER_ID] = userId
+            if (username == null) it.remove(Keys.USERNAME) else it[Keys.USERNAME] = username
         }
     }
 

@@ -30,6 +30,11 @@ private class FakeApi(
     override suspend fun login(body: cz.bezcisobe.data.remote.dto.LoginRequestDto) = throw NotImplementedError()
     override suspend fun register(body: cz.bezcisobe.data.remote.dto.RegisterRequestDto) = throw NotImplementedError()
     override suspend fun me() = throw NotImplementedError()
+    override suspend fun getRides(raceId: Long) = throw NotImplementedError()
+    override suspend fun createRide(body: cz.bezcisobe.data.remote.dto.CreateRideRequestDto) = throw NotImplementedError()
+    override suspend fun deleteRide(id: String) = throw NotImplementedError()
+    override suspend fun acceptRide(id: String) = throw NotImplementedError()
+    override suspend fun cancelRide(id: String) = throw NotImplementedError()
 }
 
 class RaceRepositoryTest {
