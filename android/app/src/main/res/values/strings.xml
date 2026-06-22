@@ -19,6 +19,7 @@
     <string name="race_type">Typ: %1$s</string>
     <string name="race_length">Délka: %1$s</string>
     <string name="race_web">Web: %1$s</string>
+    <string name="race_not_found">Závod nebyl nalezen</string>
     <string name="notif_channel_races">Závody</string>
     <string name="notif_upcoming_title">Blížící se závod</string>
 </resources>

@@ -11,15 +11,25 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
+sealed interface RaceDetailUiState {
+    data object Loading : RaceDetailUiState
+    data class Success(val race: Race) : RaceDetailUiState
+    data object NotFound : RaceDetailUiState
+}
+
 @HiltViewModel
 class RaceDetailViewModel @Inject constructor(
     repository: RaceRepository,
     savedStateHandle: SavedStateHandle,
 ) : ViewModel() {
-    private val _race = MutableStateFlow<Race?>(null)
-    val race: StateFlow<Race?> = _race
+    private val _state = MutableStateFlow<RaceDetailUiState>(RaceDetailUiState.Loading)
+    val state: StateFlow<RaceDetailUiState> = _state
+
     init {
         val id: String = checkNotNull(savedStateHandle["raceId"])
-        viewModelScope.launch { _race.value = repository.getRace(id) }
+        viewModelScope.launch {
+            val race = repository.getRace(id)
+            _state.value = if (race != null) RaceDetailUiState.Success(race) else RaceDetailUiState.NotFound
+        }
     }
 }

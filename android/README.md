@@ -16,12 +16,13 @@ Compose UI → ViewModel (StateFlow<UiState>) → Repository → Retrofit + Room
 - **Data**: Retrofit (+ kotlinx.serialization) for the API, Room for the offline race cache, DataStore for the auth token and preferences.
 - **DI**: Hilt wires the graph together.
 - The race list is **offline-first** — races are cached in Room and served from there when the network is unavailable.
+- **Standalone demo data**: if the backend is unreachable on first launch (empty cache), the app seeds ~6 bundled Czech races from `assets/sample_races.json`, so it always has something to show without a running backend.
 
 ## Prerequisites
 
-- Android Studio (Koala or newer)
+- Android Studio (Ladybug / 2024.2 or newer)
 - JDK 17
-- An emulator or a device on API 26+ (compile/target SDK 36)
+- An emulator or a device on API 26+ (compile/target SDK 35)
 
 ## Run the backend (required for live data)
 
@@ -74,6 +75,7 @@ Other accounts are listed in the backend README.
 | Night mode | Material3 theming + theme preference stored in DataStore |
 | LazyColumn | Race list rendering |
 | Local persistence | Room (offline race cache) + DataStore (auth token / preferences) |
+| Database OR JSON | Room cache, plus bundled `assets/sample_races.json` fallback when offline |
 | Networking | Retrofit + kotlinx.serialization |
 | Async | Kotlin Coroutines / Flow |
 | Navigation | Navigation Compose |
@@ -83,6 +85,7 @@ Other accounts are listed in the backend README.
 
 ## Known limitations / future work
 
-- The in-app language switch should be verified on-device.
+- The in-app language switch uses the AndroidX per-app locale API
+  (`AppCompatDelegate.setApplicationLocales`); changing it recreates the activity.
 - Out of scope for this MVP: ride offer/accept, email verification, password
   reset, admin, and profile editing.

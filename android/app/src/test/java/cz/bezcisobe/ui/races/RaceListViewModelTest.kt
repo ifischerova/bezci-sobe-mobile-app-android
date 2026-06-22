@@ -6,6 +6,7 @@ import cz.bezcisobe.data.remote.ApiService
 import cz.bezcisobe.data.remote.dto.NamedRefDto
 import cz.bezcisobe.data.remote.dto.RaceDto
 import cz.bezcisobe.data.repository.RaceRepository
+import cz.bezcisobe.data.repository.SampleRaceSource
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -21,16 +22,22 @@ private class FakeDao : RaceDao {
     val state = MutableStateFlow<List<RaceEntity>>(emptyList())
     override fun observeRaces(): Flow<List<RaceEntity>> = state
     override suspend fun getById(id: String) = state.value.find { it.id == id }
+    override suspend fun count() = state.value.size
     override suspend fun upsertAll(races: List<RaceEntity>) { state.value = races }
     override suspend fun clear() { state.value = emptyList() }
 }
-private class FakeApi(private val races: List<RaceDto>) : ApiService {
-    override suspend fun getRaces() = races
+private class FakeApi(
+    private val races: List<RaceDto>,
+    private val fail: Boolean = false,
+) : ApiService {
+    override suspend fun getRaces(): List<RaceDto> = if (fail) throw RuntimeException("boom") else races
     override suspend fun getRace(id: String) = races.first { it.id == id }
     override suspend fun login(body: cz.bezcisobe.data.remote.dto.LoginRequestDto) = throw NotImplementedError()
     override suspend fun register(body: cz.bezcisobe.data.remote.dto.RegisterRequestDto) = throw NotImplementedError()
     override suspend fun me() = throw NotImplementedError()
 }
+
+private val emptySource = SampleRaceSource { emptyList() }
 
 class RaceListViewModelTest {
     private val dispatcher = StandardTestDispatcher()
@@ -42,13 +49,13 @@ class RaceListViewModelTest {
 
     @Test
     fun `initial state is Loading`() = runTest {
-        val vm = RaceListViewModel(RaceRepository(FakeApi(listOf(dto)), FakeDao()))
+        val vm = RaceListViewModel(RaceRepository(FakeApi(listOf(dto)), FakeDao(), emptySource))
         assertTrue(vm.state.value is RaceListUiState.Loading)
     }
 
     @Test
     fun `loads races into Success state`() = runTest {
-        val vm = RaceListViewModel(RaceRepository(FakeApi(listOf(dto)), FakeDao()))
+        val vm = RaceListViewModel(RaceRepository(FakeApi(listOf(dto)), FakeDao(), emptySource))
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { vm.state.collect {} }
         advanceUntilIdle()
         val success = vm.state.value as RaceListUiState.Success
@@ -58,12 +65,25 @@ class RaceListViewModelTest {
 
     @Test
     fun `search filters by name`() = runTest {
-        val vm = RaceListViewModel(RaceRepository(FakeApi(listOf(dto)), FakeDao()))
+        val vm = RaceListViewModel(RaceRepository(FakeApi(listOf(dto)), FakeDao(), emptySource))
         backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { vm.state.collect {} }
         advanceUntilIdle()
         vm.onSearchChange("brno")
         advanceUntilIdle()
         val state = vm.state.value as RaceListUiState.Success
         assertEquals(0, state.races.size)
+    }
+
+    @Test
+    fun `emits Error when refresh fails and no data can be loaded`() = runTest {
+        // API fails AND seeding the bundled fallback also fails (e.g. asset missing),
+        // so refresh() propagates -> the VM surfaces an Error state with the message.
+        val failingSource = SampleRaceSource { throw RuntimeException("boom") }
+        val vm = RaceListViewModel(RaceRepository(FakeApi(emptyList(), fail = true), FakeDao(), failingSource))
+        backgroundScope.launch(UnconfinedTestDispatcher(testScheduler)) { vm.state.collect {} }
+        advanceUntilIdle()
+        val state = vm.state.value
+        assertTrue("expected Error but was $state", state is RaceListUiState.Error)
+        assertEquals("boom", (state as RaceListUiState.Error).message)
     }
 }

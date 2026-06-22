@@ -14,6 +14,9 @@ interface RaceDao {
     @Query("SELECT * FROM races WHERE id = :id")
     suspend fun getById(id: String): RaceEntity?
 
+    @Query("SELECT COUNT(*) FROM races")
+    suspend fun count(): Int
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun upsertAll(races: List<RaceEntity>)
 

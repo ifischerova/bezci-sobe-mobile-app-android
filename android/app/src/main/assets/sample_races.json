@@ -1,0 +1,74 @@
+[
+  {
+    "id": "sample-1",
+    "name": "Pražský maraton",
+    "place": "Praha",
+    "date": "2026-05-03",
+    "startTime": "09:00",
+    "web": "https://www.runczech.com",
+    "trackLength": { "id": "len-42", "name": "42 km" },
+    "trackType": { "id": "type-road", "name": "Silnice" },
+    "certifications": [],
+    "isPast": false
+  },
+  {
+    "id": "sample-2",
+    "name": "Běh Lužánkami",
+    "place": "Brno",
+    "date": "2026-06-14",
+    "startTime": "10:30",
+    "web": "https://www.behpodjedem.cz",
+    "trackLength": { "id": "len-10", "name": "10 km" },
+    "trackType": { "id": "type-park", "name": "Park" },
+    "certifications": [],
+    "isPast": false
+  },
+  {
+    "id": "sample-3",
+    "name": "Ostravská městská desítka",
+    "place": "Ostrava",
+    "date": "2026-07-19",
+    "startTime": "18:00",
+    "web": null,
+    "trackLength": { "id": "len-10", "name": "10 km" },
+    "trackType": { "id": "type-road", "name": "Silnice" },
+    "certifications": [],
+    "isPast": false
+  },
+  {
+    "id": "sample-4",
+    "name": "Krkonošský horský půlmaraton",
+    "place": "Špindlerův Mlýn",
+    "date": "2026-08-22",
+    "startTime": "08:30",
+    "web": "https://www.gigasport.cz",
+    "trackLength": { "id": "len-21", "name": "21 km" },
+    "trackType": { "id": "type-trail", "name": "Trail" },
+    "certifications": [],
+    "isPast": false
+  },
+  {
+    "id": "sample-5",
+    "name": "Olomoucký půlmaraton",
+    "place": "Olomouc",
+    "date": "2026-09-12",
+    "startTime": "19:00",
+    "web": "https://www.runczech.com",
+    "trackLength": { "id": "len-21", "name": "21 km" },
+    "trackType": { "id": "type-road", "name": "Silnice" },
+    "certifications": [],
+    "isPast": false
+  },
+  {
+    "id": "sample-6",
+    "name": "Silvestrovský běh",
+    "place": "Plzeň",
+    "date": "2025-12-31",
+    "startTime": "11:00",
+    "web": null,
+    "trackLength": { "id": "len-5", "name": "5 km" },
+    "trackType": { "id": "type-park", "name": "Park" },
+    "certifications": [],
+    "isPast": true
+  }
+]
