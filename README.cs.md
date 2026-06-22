@@ -3,9 +3,10 @@
 **Česky** | [English](README.md)
 
 Full-stack platforma pro sdílení dopravy mezi běžci, kteří jezdí na české
-běžecké závody. Projekt spojuje React + TypeScript frontend se Spring Boot +
-PostgreSQL backendem a ukazuje vrstvenou architekturu, JWT autentizaci,
-autorizaci podle rolí, validaci, dokumentaci OpenAPI, logování a monitoring.
+běžecké závody. Projekt spojuje React + TypeScript frontend a nativní
+Kotlin + Jetpack Compose Android aplikaci se Spring Boot + PostgreSQL
+backendem a ukazuje vrstvenou architekturu, JWT autentizaci, autorizaci
+podle rolí, validaci, dokumentaci OpenAPI, logování a monitoring.
 
 ## Architektura
 
@@ -36,6 +37,18 @@ controller  →  service  →  repository  →  entity (JPA)
 Průřezové balíčky: `config/` (Security, CORS, OpenAPI), `security/` (JWT
 filter/provider/UserDetails), `validation/` (vlastní pravidlo
 `@ValidRideRequest`), `exception/` (typované výjimky + globální handler).
+
+## Android aplikace
+
+Nativní klient v **Kotlinu + Jetpack Compose** (MVVM, offline-first přes
+Room), který komunikuje se stejným backendem. Pokrývá procházení/hledání
+závodů, přihlášení a registraci, nastavení (světlý/tmavý motiv + jazyk
+cs/en) a celý carpoolingový tok (nabídka / poptávka / přijetí / zrušení
+jízd u jednotlivých závodů), plus denní notifikaci o nadcházejícím závodě.
+Staví na stabilní sadě nástrojů (Gradle 8.11.1 / AGP 8.7.3 / Kotlin 2.0.21
+/ compileSdk 35 / Java 17) a z emulátoru míří na backend na
+`http://10.0.2.2:8080/api`. Kompletní pokyny pro spuštění a testy jsou
+v [`android/README.md`](android/README.md).
 
 ## Funkce
 
@@ -100,6 +113,12 @@ npm run build        # tsc + Vite, ESLint čistý, build čistý
 npm run e2e          # Playwright (Chromium + Firefox)
 ```
 
+Základ URL API se čte z env proměnné `VITE_API_BASE` (výchozí
+`http://localhost:8080/api`); viz `.env.example`. Pro backend mimo
+localhost nastav `VITE_API_BASE` (např. v souboru `.env`) před buildem
+nebo spuštěním dev serveru. Validátory formulářů jsou v
+`src/utils/validation.ts` a používá je registrační formulář.
+
 ## Backend
 
 ### Jednorázové nastavení
@@ -110,15 +129,18 @@ CREATE DATABASE bezcisobe;
 -- (v non-development prostředí přepiš přes env proměnné — viz "Bezpečnostní poznámky" níže).
 ```
 
-Flyway sám vytvoří schéma a naseeduje číselníky, závody, uživatele a
-ukázkové jízdy přes migrace `V1`–`V10` při prvním spuštění (V5/V6 naplní
-kalendář 2026 scraperem ze [ceskybeh.cz/terminovka](https://ceskybeh.cz/terminovka/),
-V7 opraví chybu v destinacích jízd, V8 odstraní admina ze sdílených
-jízd, V9 přidá 10 mezinárodních uživatelů s jízdami, aby seznam jízd
-viditelně míchal české i zahraniční běžce, V10 přidá sloupec
-`email_verified` a tabulky `verification_tokens` / `password_reset_tokens`
-a všechny seedované uživatele rovnou označí jako ověřené, aby testovací
-účty fungovaly dál).
+Flyway běží ze dvou oddělených umístění:
+
+- **Strukturální migrace** (`classpath:db/migration`) se spouštějí ve
+  **všech** prostředích: `V1` vytvoří schéma, `V2` naseeduje číselníky,
+  `V10` přidá sloupec `email_verified` a tabulky `verification_tokens` /
+  `password_reset_tokens`, `V11` přidá sloupec s jazykem uživatele a `V12`
+  přidá `rides.version` pro optimistické zamykání.
+- **Demo-seed migrace** (`classpath:db/seed`, `V3`–`V9` — ukázkoví
+  uživatelé včetně `admin`/`admin123`, závody a jízdy) se spouštějí
+  **pouze** v profilu `dev`, který v `application-dev.yml` přidává
+  `db/seed` do `spring.flyway.locations`. Seedované demo účty proto
+  v produkci **neexistují**.
 
 ### Spuštění
 
@@ -225,10 +247,12 @@ a neočekávané pády na ERROR (`GlobalExceptionHandler#handleUnexpected`).
 
 > **POUZE PRO VÝVOJ / DEMO** — účty uvedené níže existují výhradně
 > pro účely lokálního vývoje a obhajoby školního projektu. Jsou
-> seedované Flyway migracemi V3/V5/V9 a jejich hesla jsou zveřejněna
-> v tomto README. **Před jakýmkoli produkčním nasazením je nutné
-> všechny seedované účty smazat (nebo jim rotovat hesla) a nový
-> administrátorský účet vytvořit standardním DBA procesem.**
+> seedované Flyway migracemi V3/V5/V9 v `classpath:db/seed`, které se
+> spouštějí **pouze v profilu `dev`**, takže tyto účty v produkci
+> **neexistují**. Jejich hesla jsou zveřejněna v tomto README. **Před
+> jakýmkoli produkčním nasazením je nutné zajistit, aby se demo seed
+> neaplikoval (a pokud kdy aplikoval, seedované účty smazat / rotovat jim
+> hesla) a nový administrátorský účet vytvořit standardním DBA procesem.**
 > Tyto seedované přihlašovací údaje se nepovažují za tajné.
 
 Základní účty (V3):
@@ -273,9 +297,10 @@ Seedované BCrypt hashe byly vygenerovány znovu proti
 -Dtest=BCryptHashValidationTest` selže, kdyby se některý hash rozjel s
 heslem.
 
-Všechny seedované účty výše má migrace `V10` rovnou nastavené na
-`email_verified = true`, takže se přihlásí bez ověřovacího kroku. Nově
-vytvořené účty přes `POST /api/auth/register` ověřené NEJSOU — uživatel
+Všechny seedované účty výše nastaví na `email_verified = true` migrace
+`V10` (která v profilu `dev` běží až po demo seedu), takže se přihlásí
+bez ověřovacího kroku. Nově vytvořené účty přes `POST /api/auth/register`
+ověřené NEJSOU — uživatel
 musí nejprve kliknout na odkaz, který mu dorazí do e-mailu, jinak ho
 přihlášení neprojde.
 
@@ -298,8 +323,22 @@ přihlášení neprojde.
   přístupové údaje se čtou z env proměnných (`JWT_SECRET`, `DATABASE_URL`,
   `DATABASE_USERNAME`, `DATABASE_PASSWORD`); výchozí hodnoty v YAML jsou
   jasně označené dev placeholdery, takže aplikace funguje out-of-the-box
-  hned po checkoutu. Před non-development nasazením nastav reálné hodnoty
-  přes env proměnné (nebo secret store).
+  hned po checkoutu. Mimo profily `dev`/`test` se aplikace **odmítne
+  spustit**, pokud je `JWT_SECRET` stále zveřejněný placeholder nebo kratší
+  než 32 bajtů (256 bitů). Před non-development nasazením nastav reálné
+  hodnoty přes env proměnné (nebo secret store).
+- Požadavky se autentizují tak, že se uživatel dohledá podle **subjektu**
+  tokenu (neměnné ID uživatele), ne podle uživatelského jména, takže
+  přejmenování uživatele nikdy neznehodnotí ani nepřesměruje aktivní token.
+- Povolené CORS origins se nastavují přes env proměnnou
+  `APP_CORS_ALLOWED_ORIGINS` (property `app.cors.allowed-origins`, výchozí
+  `http://localhost:5173`).
+- Registrace **neprozradí**, zda už je e-mail registrovaný
+  (anti-enumeration); duplicitní **uživatelské jméno** se stále hlásí.
+- Actuator `/info` už nevystavuje properties prostředí (`info.env` vypnuté),
+  takže anonymní volající nečtou systémová / env metadata.
+- Přijetí/zrušení jízdy používá optimistické zamykání a při kolizi míst
+  vrací čisté `400` místo `500`.
 - Method-level autorizace přes Spring Security `@EnableMethodSecurity`
   (`@PreAuthorize`); URL filtr přidává druhou vrstvu kontroly rolí
 - Automatické XSS escapování v Reactu; klientská validace zrcadlí Bean

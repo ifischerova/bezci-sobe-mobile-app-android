@@ -25,6 +25,7 @@ uživatele**.
 12. [Přepínání jazyka a motivu](#12-přepínání-jazyka-a-motivu)
 13. [Časté otázky (FAQ)](#13-časté-otázky-faq)
 14. [Co dělat, když...](#14-co-dělat-když)
+15. [Mobilní aplikace pro Android](#15-mobilní-aplikace-pro-android)
 
 ---
 
@@ -89,15 +90,21 @@ Pro vytvoření nebo přijetí jízdy se musíš zaregistrovat.
 
 > **Co když se objeví červená chyba?**
 > - "Uživatelské jméno již existuje" – zvol jiné.
-> - "Email již existuje" – buď máš účet, použij Zapomenuté heslo,
->   nebo zaregistruj jiný e-mail.
 > - "Heslo musí mít alespoň 6 znaků" – prodluž heslo.
+>
+> **Pozor na e-mail:** Z bezpečnostních důvodů aplikace neprozradí,
+> zda už je daný e-mail v systému registrovaný — registrace v takovém
+> případě vrátí stejnou jednotnou hlášku jako u jiného konfliktu, aby
+> nešlo zjišťovat (enumerovat) existující účty. Pokud máš podezření,
+> že už účet s tímto e-mailem máš, použij **Zapomenuté heslo**.
 
 ---
 
 ## 4. Ověření e-mailové adresy
 
-Po registraci ti do schránky přijde e-mail s předmětem
+Po registraci je **ověření e-mailu povinné** — dokud na odkaz
+neklikneš, nepůjde se účtem přihlásit (přihlášení vrátí chybu
+o neověřeném účtu). Do schránky ti přijde e-mail s předmětem
 **"Běžci sobě – ověřte svou e-mailovou adresu"**. Obsah:
 
 > Vítejte v Běžci sobě!
@@ -126,6 +133,12 @@ Po registraci ti do schránky přijde e-mail s předmětem
 - **E-mail jsi nikdy nedostal/a** – mrkni do složky **Spam** /
   **Hromadné**. Pokud nic, použij **Poslat odkaz znovu** přímo ze
   stránky "Zkontroluj si e-mail".
+
+> **Vývojový režim:** Pokud běžíš aplikaci lokálně pro vývoj
+> (backend ve výchozím profilu `dev`), e-maily se reálně neodesílají —
+> backend místo toho vypíše celý obsah ověřovacího e-mailu včetně
+> odkazu do své **konzole / logu**. Odkaz odtud zkopíruj a otevři
+> v prohlížeči.
 
 ---
 
@@ -373,8 +386,8 @@ nevratné.
 
 **Otázka:** Funguje aplikace na telefonu?
 **Odpověď:** Aplikaci můžeš plně používat v prohlížeči i na
-mobilním telefonu — UI je responzivní od šířky 320 px. Nativní
-mobilní aplikace je ve vývoji.
+mobilním telefonu — UI je responzivní od šířky 320 px. Kromě toho
+existuje i **nativní aplikace pro Android** (viz §15).
 
 ---
 
@@ -387,6 +400,31 @@ mobilní aplikace je ve vývoji.
 | Vidím "Heslo musí mít alespoň 6 znaků" i u silného hesla | Pole *Potvrzení hesla* musí přesně odpovídat poli *Heslo*. Případně mrkni, jestli nemáš zapnutý CapsLock.                                                                       |
 | Tlačítko "Přidat jízdu" se nezobrazuje                   | Musíš být přihlášený/á. Pokud jsi, ale tlačítko se přesto neobjeví, odhlas se a znovu přihlas — tvoje přihlášení už mohlo expirovat.                                            |
 | Aplikace mi neuložila jazyk / motiv                      | Tvůj prohlížeč pravděpodobně blokuje ukládání nastavení (např. anonymní / inkognito režim). V běžném okně to funguje.                                                          |
+
+---
+
+## 15. Mobilní aplikace pro Android
+
+Vedle webové aplikace existuje i **nativní aplikace pro Android**
+(Kotlin / Jetpack Compose), která se připojuje ke **stejnému
+backendu** jako web. Nabízí v mobilní podobě stejné hlavní funkce:
+
+- procházení **katalogu závodů** (seznam je dostupný i offline
+  z lokální cache),
+- **registraci, přihlášení a odhlášení**,
+- **spolujízdu** — nabídku i poptávku jízdy k závodu, přijetí
+  a zrušení místa i smazání vlastní jízdy,
+- nastavení **motivu** (světlý / tmavý) a **jazyka** (čeština /
+  angličtina).
+
+> **Pro vývojáře:** Aplikace se z emulátoru připojuje na
+> `http://10.0.2.2:8080/api` (alias hostitelského stroje, kde běží
+> backend). Postup pro sestavení a spuštění najdeš v `android/README.md`.
+
+> **Demo účty:** Přednastavené (seedované) demo účty — včetně
+> ukázkového administrátora `admin` / `admin123` — existují **pouze
+> ve vývojovém prostředí** (profil `dev`). V produkci se neseedují,
+> takže se s nimi přihlásit nelze.
 
 ---
 

@@ -68,16 +68,18 @@ Není cílem aplikace:
 ### 2.1 Perspektiva produktu
 
 Běžci sobě je **samostatná aplikace** (greenfield), nezávisí na žádném
-existujícím IS. Skládá se ze tří hlavních komponent:
+existujícím IS. Skládá se z těchto hlavních komponent:
 
-- **Frontend** – jednostránková aplikace v Reactu.
+- **Frontend (web)** – jednostránková aplikace v Reactu.
+- **Android klient** – nativní mobilní aplikace (Kotlin + Jetpack
+  Compose) sdílející stejnou doménu a REST API jako web.
 - **Backend** – REST API ve Spring Bootu, běží na JVM.
 - **Databáze** – PostgreSQL pro produkční nasazení, H2 in-memory pro
   testy.
 
-Komunikace mezi frontendem a backendem probíhá výhradně přes HTTPS /
-HTTP (REST + JSON). Autentizace je řešena stateless JWT tokenem
-v hlavičce `Authorization: Bearer <token>`.
+Komunikace mezi klienty (web i Android) a backendem probíhá výhradně
+přes HTTPS / HTTP (REST + JSON). Autentizace je řešena stateless JWT
+tokenem v hlavičce `Authorization: Bearer <token>`.
 
 ### 2.2 Hlavní funkce produktu
 
@@ -98,6 +100,15 @@ v hlavičce `Authorization: Bearer <token>`.
 | F13 | Přepínání jazyka UI (čeština ↔ angličtina)                |
 | F14 | Přepínání motivu (světlý ↔ tmavý)                         |
 
+> **Android klient.** Nativní mobilní aplikace (Kotlin + Jetpack
+> Compose) pokrývá podmnožinu stejné domény nad společným REST API:
+> procházení nadcházejících závodů a jejich detailu (F4, F5),
+> přihlášení a registraci (F1, F2, F6), spolujízdu k závodu – nabídku
+> i poptávku jízdy a rezervaci / zrušení místa (F6, F8, F9) – a
+> nastavení (přepínání motivu a jazyka cs/en, F13, F14). Funguje
+> offline-first: závody se cachují lokálně a při nedostupnosti backendu
+> se použije zabudovaná demonstrační JSON záloha.
+
 ### 2.3 Charakteristika uživatelů
 
 | Role          | Popis                                                                            |
@@ -109,7 +120,8 @@ v hlavičce `Authorization: Bearer <token>`.
 ### 2.4 Provozní prostředí
 
 - **Server:** Linux nebo Windows s JDK 17+ a PostgreSQL 14+.
-- **Klient:** Chrome 110+, Firefox 110+, Edge 110+, Safari 16+.
+- **Webový klient:** Chrome 110+, Firefox 110+, Edge 110+, Safari 16+.
+- **Android klient:** Android 8.0 (API 26) a vyšší.
 - **Síť:** HTTPS pro produkci, HTTP pro lokální vývoj.
 - **SMTP:** přístup k SMTP serveru (např. Mailtrap sandbox) pro
   odesílání verifikačních a resetových e-mailů.
@@ -193,9 +205,11 @@ Konvence: **FRn** = funkční požadavek, **Pn** = priorita
 | ID    | Požadavek                                                                                                                                                  |
 | ----- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | NFR1  | Hesla se nikdy nesmí ukládat v plain textu. Používá se BCrypt s cost faktorem 10.                                                                          |
-| NFR2  | Autentizační JWT secret se čte z env proměnné `JWT_SECRET`; YAML obsahuje pouze dev placeholder, který se v produkci NESMÍ použít.                          |
+| NFR2  | Autentizační JWT secret se čte z env proměnné `JWT_SECRET`; YAML obsahuje pouze dev placeholder. Mimo profil `dev`/`test` se aplikace odmítne spustit, pokud je secret ponechán na zakomponovaném placeholderu nebo je kratší než 32 bajtů (256 bitů pro HS256).                          |
 | NFR3  | Endpointy citlivé na roli musí být chráněné dvěma vrstvami: URL filtrem (`SecurityConfig`) a anotací `@PreAuthorize` (defence in depth).                    |
-| NFR4  | API odpovědi pro `/forgot-password` a `/resend-verification` jsou identické bez ohledu na existenci e-mailu (prevence enumerace účtů).                     |
+| NFR4  | API odpovědi pro `/forgot-password` a `/resend-verification` jsou identické bez ohledu na existenci e-mailu (prevence enumerace účtů). Stejně tak registrace neprozrazuje, zda zadaný e-mail již existuje.                     |
+| NFR4b | JWT autentizace dohledává uživatele podle neměnného `id` (subject tokenu), nikoli podle uživatelského jména, které se může změnit.                          |
+| NFR4c | Povolené CORS originy jsou konfigurovatelné přes `app.cors.allowed-origins` / `APP_CORS_ALLOWED_ORIGINS` (čárkou oddělený seznam); v kódu nejsou natvrdo zadané. |
 | NFR5  | Stack trace nikdy nesmí prosáknout do odpovědi klienta; všechny výjimky se transformují v `GlobalExceptionHandler` na obecný `ErrorResponse`.              |
 | NFR6  | DB credentials se čtou z env proměnných `DATABASE_URL`, `DATABASE_USERNAME`, `DATABASE_PASSWORD`.                                                          |
 | NFR7  | npm závislosti se instalují s vypnutými post-install skripty (`ignore-scripts=true`).                                                                      |
@@ -233,7 +247,7 @@ Konvence: **FRn** = funkční požadavek, **Pn** = priorita
 | NFR19 | Backend má alespoň 50 jednotkových / integračních testů.                                                                                                       |
 | NFR20 | Testy běží proti H2 in-memory DB, nepotřebují PostgreSQL.                                                                                                      |
 | NFR21 | Frontend má alespoň 30 unit testů (Vitest) a 20 E2E scénářů (Playwright).                                                                                      |
-| NFR22 | Bezpečnostní hashe seedovaných účtů jsou self-verified – `BCryptHashValidationTest` ověřuje, že seedované hashe odpovídají dokumentovaným heslům.              |
+| NFR22 | Bezpečnostní hashe seedovaných účtů (pouze profil `dev`, viz SDD §3.4) jsou self-verified – `BCryptHashValidationTest` ověřuje, že seedované hashe odpovídají dokumentovaným heslům.              |
 
 ### 4.6 Dokumentace
 

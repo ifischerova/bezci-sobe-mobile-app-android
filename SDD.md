@@ -31,12 +31,15 @@ viz [TECHNICAL_DOCUMENTATION.md](TECHNICAL_DOCUMENTATION.md)
 
 ## 1. Architektura systému
 
-Běžci sobě je třívrstvá webová aplikace:
+Běžci sobě je třívrstvá aplikace. Doménu zpřístupňují dva klienti nad
+společným REST API – webová React SPA a nativní Android aplikace
+(Kotlin + Jetpack Compose, viz §7.7):
 
 ```mermaid
 flowchart LR
     subgraph Klient
         BR[Prohlížeč]
+        AND[Android aplikace<br/>Kotlin + Compose]
     end
     subgraph Aplikační vrstva
         FE[React SPA<br/>Vite dev server<br/>nebo statický build]
@@ -52,6 +55,7 @@ flowchart LR
     BR -- HTTPS/HTTP --> FE
     BR -- HTTPS/HTTP --> BE
     FE -- REST + JSON<br/>Authorization: Bearer JWT --> BE
+    AND -- REST + JSON<br/>Authorization: Bearer JWT --> BE
     BE -- JDBC --> DB
     BE -- SMTP --> SMTP
 ```
@@ -64,6 +68,7 @@ flowchart LR
 | PostgreSQL přes Flyway    | Schéma je verzované, deterministické, volatelné. V testech H2 in-memory, abychom nepotřebovali Postgres.             |
 | Spring Boot 3.2           | Standardní volba pro Java backend; Jakarta EE 9+ namespace, Spring Security 6, Hibernate 6.                          |
 | React 18 + TypeScript     | Komponentový SPA frontend s typovou bezpečností. Vite jako rychlý dev server / bundler.                              |
+| Android: Kotlin + Compose | Nativní mobilní klient nad stejným REST API. MVVM, offline-first (Room cache + JSON záloha), Retrofit, Navigation Compose, WorkManager. Detaily v §7.7. |
 | OpenAPI 3 (springdoc)     | Generování dokumentace přímo z anotovaného kódu. Swagger UI s JWT bearer pro pohodlné volání endpointů.              |
 | Mail starter + log-only   | Produkce posílá přes `JavaMailSender` (`app.mail.log-only=false` jako produkční default). Profil `dev` přepíná na log-only fallback, kdy se obsah e-mailu vypíše do konzole místo otevření SMTP konektivity — pohodlné pro lokální vývoj bez SMTP. **V produkci log-only NESMÍ být zapnutý**, jinak by se verifikační a resetovací tokeny dostaly do aplikačních logů. |
 
@@ -298,6 +303,7 @@ erDiagram
 | `users`       | `username` a `email` jsou UNIQUE. `email_verified` defaultně `false`.                               |
 | `rides`       | `type` je CHECK constraint na hodnoty `'OFFER'` nebo `'REQUEST'`.                                   |
 | `rides`       | `chk_seats`: `occupied_seats <= available_seats`.                                                   |
+| `rides`       | `version` (`@Version`, V12) – optimistické zamykání nad `occupied_seats` při souběžných rezervacích míst (viz §4.1, `acceptRide` / `cancelRideAcceptance`). |
 | Past races    | Datum závodu mladší než dnešek (Europe/Prague) → `RideService` odmítne `createRide` i `acceptRide` s 400. Úpravy a mazání vlastní jízdy ani zrušení vlastního přijetí blokované nejsou. `RaceMapper` a `RideMapper` vystavují computed pole `isPast` / `racePast` pro frontend. |
 | `user_roles`  | Kompozitní PK `(user_id, role)`. Smaže se `ON DELETE CASCADE` při smazání uživatele.                |
 | `*_tokens`    | `token` je UNIQUE. `used` defaultně `false`. Expirace se kontroluje aplikačně přes `expires_at`.    |
@@ -314,19 +320,31 @@ erDiagram
 
 ### 3.4 Flyway migrace
 
-| Migrace                                          | Účel                                                                                        |
-| ------------------------------------------------ | ------------------------------------------------------------------------------------------- |
-| V1 `create_schema.sql`                           | Tabulky users, races, rides + reference tabulky a vazební tabulky.                          |
-| V2 `seed_reference_data.sql`                     | Číselníky délek / typů tratí / certifikací / race_calendars.                                |
-| V3 `seed_users_and_races.sql`                    | Základní seed: admin, jana.novakova, ivka + ukázkové závody.                                |
-| V4 `seed_rides.sql`                              | Ukázkové jízdy.                                                                             |
-| V5 `seed_more_races_users_rides.sql`             | 800+ závodů scrapnutých z ceskybeh.cz/terminovka, 8 dalších uživatelů.                      |
-| V6 `seed_2027_races_and_remaining_rides.sql`     | Doplnění závodů na rok 2027.                                                                |
-| V7 `fix_ride_destinations.sql`                   | Oprava chyby v destinacích.                                                                 |
-| V8 `remove_admin_from_rides.sql`                 | Vyčištění – admin nevystupuje v sample datech jako spolujezdec.                             |
-| V9 `seed_international_users_and_rides.sql`      | 10 mezinárodních uživatelů s vlastními jízdami.                                             |
-| V10 `email_verification_and_reset.sql`           | Sloupec `email_verified` + tabulky `verification_tokens` a `password_reset_tokens`.         |
-| V11 `user_language.sql`                          | Sloupec `language` v tabulce `users` (cs/en) pro jazykovou preferenci.                      |
+Migrace jsou rozděleny do dvou složek podle prostředí:
+
+- **Strukturální migrace** v `classpath:db/migration` (V1, V2, V10–V12)
+  běží ve **všech** prostředích. Vytvářejí schéma, referenční data
+  a strukturální změny.
+- **Demonstrační SEED migrace** v `classpath:db/seed` (V3–V9) obsahují
+  ukázkové uživatele (včetně `admin` / `admin123`), závody a jízdy.
+  Spouští se **pouze** v profilu `dev` (viz `application-dev.yml`,
+  `spring.flyway.locations: classpath:db/migration,classpath:db/seed`).
+  **V produkci tyto demo účty neexistují.**
+
+| Migrace                                          | Složka         | Účel                                                                                        |
+| ------------------------------------------------ | -------------- | ------------------------------------------------------------------------------------------- |
+| V1 `create_schema.sql`                           | `db/migration` | Tabulky users, races, rides + reference tabulky a vazební tabulky.                          |
+| V2 `seed_reference_data.sql`                     | `db/migration` | Číselníky délek / typů tratí / certifikací / race_calendars.                                |
+| V3 `seed_users_and_races.sql`                    | `db/seed` (dev) | Základní seed: admin, jana.novakova, ivka + ukázkové závody.                                |
+| V4 `seed_rides.sql`                              | `db/seed` (dev) | Ukázkové jízdy.                                                                             |
+| V5 `seed_more_races_users_rides.sql`             | `db/seed` (dev) | 800+ závodů scrapnutých z ceskybeh.cz/terminovka, 8 dalších uživatelů.                      |
+| V6 `seed_2027_races_and_remaining_rides.sql`     | `db/seed` (dev) | Doplnění závodů na rok 2027.                                                                |
+| V7 `fix_ride_destinations.sql`                   | `db/seed` (dev) | Oprava chyby v destinacích.                                                                 |
+| V8 `remove_admin_from_rides.sql`                 | `db/seed` (dev) | Vyčištění – admin nevystupuje v sample datech jako spolujezdec.                             |
+| V9 `seed_international_users_and_rides.sql`      | `db/seed` (dev) | 10 mezinárodních uživatelů s vlastními jízdami.                                             |
+| V10 `email_verification_and_reset.sql`           | `db/migration` | Sloupec `email_verified` + tabulky `verification_tokens` a `password_reset_tokens`.         |
+| V11 `user_language.sql`                          | `db/migration` | Sloupec `language` v tabulce `users` (cs/en) pro jazykovou preferenci.                      |
+| V12 `ride_version.sql`                           | `db/migration` | Sloupec `rides.version` pro optimistické zamykání při souběžné rezervaci míst.              |
 
 ---
 
@@ -338,7 +356,7 @@ erDiagram
 | ----------------------- | -------------- | ---------------------------------------------------------------------------------------- |
 | `AuthService`           | Service        | Registrace, přihlášení, e-mail verifikace, reset hesla. Centralizovaná autentizační logika. |
 | `EmailService`          | Service        | Wrapper nad `JavaMailSender`. Skládá HTML/text těla, sestavuje URL z `APP_URL`.          |
-| `RideService`           | Service        | CRUD jízd, accept/cancel, validace vlastnictví, blok pro proběhlé závody (`race.date < dnes` → `BadRequestException`). |
+| `RideService`           | Service        | CRUD jízd, accept/cancel, validace vlastnictví, blok pro proběhlé závody (`race.date < dnes` → `BadRequestException`). `acceptRide` / `cancelRideAcceptance` ukládají přes optimistické zamykání (`Ride.@Version`, V12); souběžný konflikt o místo se přes `OptimisticLockingFailureException` překládá na HTTP 400 (`error.ride.seat_conflict`). |
 | `RaceService`           | Service        | Listing + paginované hledání závodů. `getAllRaces()` deleguje na `RaceRepository.findAllByDateGreaterThanEqualOrderByDateAsc(today)`, kde `today` je `LocalDate.now(ZoneId.of("Europe/Prague"))`. Filtr proběhlých závodů se aplikuje na databázové úrovni; klient si tak nikdy nemusí stahovat ani filtrovat staré závody. Časové pásmo `Europe/Prague` je konzistentní s ostatními past-race kontrolami v `RideService`. |
 | `AdminService`          | Service        | Administrátorské operace nad uživateli a jízdami.                                        |
 | `JwtTokenProvider`      | Security       | Generování a parsing JWT, validace podpisu a expirace.                                   |
@@ -381,7 +399,7 @@ flowchart TB
 
 | Vrstva                         | Co kontroluje                                                          |
 | ------------------------------ | ---------------------------------------------------------------------- |
-| 1. **CORS filter**             | Povolené origins z `CorsConfig` (jen frontend hostname).               |
+| 1. **CORS filter**             | Povolené origins z `CorsConfig`, konfigurovatelné přes `app.cors.allowed-origins` / `APP_CORS_ALLOWED_ORIGINS` (čárkou oddělený seznam, nejsou natvrdo v kódu). |
 | 2. **JWT filter**              | Validuje JWT, naplní `SecurityContext` (anonymous, ROLE_USER, ROLE_ADMIN). |
 | 3. **URL filter**              | `SecurityConfig` definuje request matchery – kdo smí kam.               |
 | 4. **Method security**         | `@PreAuthorize` na úrovni service / controller metody.                  |
@@ -400,7 +418,8 @@ sequenceDiagram
 
     Client->>Filter: HTTP Authorization: Bearer <token>
     Filter->>Provider: validateToken(token)
-    Provider-->>Filter: claims (subject, roles)
+    Provider-->>Filter: claims (subject = user id, roles)
+    Note over Filter: UserDetailsServiceImpl.loadUserById(UUID)<br/>– dohledání podle neměnného id, ne username
     Filter->>SC: set Authentication(UserDetailsImpl)
     Filter->>Controller: chain.doFilter()
     Controller-->>Client: HTTP response
@@ -414,8 +433,9 @@ sequenceDiagram
 ### 5.3 Hashování hesel
 
 - `BCryptPasswordEncoder` s defaultním cost 10.
-- Hesla seedovaných uživatelů jsou v V3 migraci jako pre-computed
-  BCrypt hashe.
+- Hesla seedovaných uživatelů jsou jako pre-computed BCrypt hashe
+  v SEED migracích (V3/V5/V9 v `db/seed`). Tyto účty existují **pouze
+  v profilu `dev`** – v produkci se neseedují (viz §3.4).
 - `BCryptHashValidationTest` ověřuje, že seedovaný hash skutečně
   odpovídá heslu dokumentovanému v README – pokud se hesla rozjedou,
   test selže.
@@ -424,7 +444,7 @@ sequenceDiagram
 
 | Tajemství         | Zdroj                                                                                                                              |
 | ----------------- | ---------------------------------------------------------------------------------------------------------------------------------- |
-| JWT secret        | env `JWT_SECRET`. YAML obsahuje dev placeholder, který produkce NESMÍ použít.                                                       |
+| JWT secret        | env `JWT_SECRET`. YAML obsahuje dev placeholder. Mimo profil `dev`/`test` se aplikace přes fail-fast guard v `JwtTokenProvider.validateSecret()` odmítne spustit, pokud je secret ponechán na placeholderu nebo kratší než 32 bajtů (256 bitů pro HS256). |
 | DB credentials    | env `DATABASE_URL`, `DATABASE_USERNAME`, `DATABASE_PASSWORD`.                                                                       |
 | SMTP credentials  | env `MAIL_USERNAME`, `MAIL_PASSWORD`. Bez nich profil `dev` přepne na log-only režim.                                              |
 
@@ -432,7 +452,9 @@ sequenceDiagram
 
 Endpointy `POST /forgot-password` a `POST /resend-verification` vrací
 vždy HTTP 204 bez ohledu na to, jestli e-mail v systému existuje.
-Útočník tak nemůže měřit response a zjistit, kdo má účet.
+Útočník tak nemůže měřit response a zjistit, kdo má účet. Stejnou
+zásadou se řídí i registrace – neprozrazuje, zda zadaný e-mail již
+v systému existuje.
 
 ### 5.6 Ochrana proti brute-force přihlášení
 
@@ -750,8 +772,11 @@ by se přidal `RequireAuth` wrapper.)
 
 ### 7.4 API komunikace
 
-`apiService.ts` je tenký wrapper nad `fetch`. Tři klíčová rozhodnutí:
+`apiService.ts` je tenký wrapper nad `fetch`. Klíčová rozhodnutí:
 
+0. **Základní URL API se čte z prostředí** – `import.meta.env.VITE_API_BASE`
+   s výchozí hodnotou `http://localhost:8080/api` (žádné natvrdo zadané
+   produkční URL). Šablona proměnných je v `.env.example`.
 1. **Token se přikládá automaticky** do hlavičky `Authorization` u všech
    metod, které volají `authHeaders()`.
 2. **Chyby se vyhazují jako typovaný `ApiError`** s polem `status`,
@@ -783,6 +808,48 @@ jeho účet úspěšně ověřen. Produkční build Strict Mode dvojnásobný
 mount nedělá, takže chování zůstává jednovolací; strážní pattern je
 ale obecně užitečný pro jakýkoli one-shot effect, který má vedlejší
 efekty na backendu.
+
+### 7.7 Android klient
+
+Vedle webové SPA existuje nativní **Android** aplikace (modul
+`android/app`, package `cz.bezcisobe`) postavená nad stejnou doménou
+a stejným REST API. Cílí na Android 8.0 (API 26) a vyšší.
+
+**Technologický stack:**
+
+- **Kotlin + Jetpack Compose** (Material 3) – deklarativní UI.
+- **Architektura MVVM** – obrazovky (`LoginScreen`, `RegisterScreen`,
+  `RaceListScreen`, `RaceDetailScreen`, `SettingsScreen`) drží stav
+  v `ViewModel`ech (`AuthViewModel`, `RaceListViewModel`,
+  `RaceDetailViewModel`, `SettingsViewModel`, `SessionViewModel`).
+- **Hilt** – dependency injection (moduly `NetworkModule`,
+  `DatabaseModule`, `RepositoryModule`).
+- **Retrofit** + `kotlinx.serialization` converter – HTTP klient nad
+  `ApiService`; `AuthInterceptor` přikládá JWT do hlavičky
+  `Authorization`.
+- **Room** – lokální cache závodů (`AppDatabase`, `RaceDao`,
+  `RaceEntity`).
+- **Navigation Compose** – navigace mezi obrazovkami
+  (`BezciNavGraph`, `Routes`, `AppScaffold`).
+- **WorkManager** – `UpcomingRaceWorker` periodicky obnoví data
+  a upozorní notifikací na nejbližší nadcházející závod.
+- **DataStore (Preferences)** – persistence JWT tokenu, session,
+  jazyka a motivu (`SettingsRepository`).
+
+**Offline-first.** `RaceRepository` vystavuje seznam závodů jako
+`Flow` z Room cache. `refresh()` se pokusí stáhnout data z backendu
+a uložit je do cache; pokud je backend nedostupný a cache je prázdná,
+naseeduje se zabudovaná demonstrační JSON záloha
+(`assets/sample_races.json`) přes `SampleRaceSource`, aby byla
+aplikace použitelná i samostatně.
+
+**Pokrytá doména** (podmnožina webu): procházení nadcházejících
+závodů a detailu, přihlášení / registrace, nastavení (motiv
+LIGHT/DARK/SYSTEM + jazyk cs/en) a spolujízda – nabídka i poptávka
+jízdy k závodu (`createRide`) a rezervace / zrušení místa
+(`acceptRide` / `cancelRide`). Lokalizace (cs/en) je řešena přes
+Android resource qualifiers (`values` / `values-en`) a per-app
+locale (`AppCompatDelegate`).
 
 ---
 
@@ -822,8 +889,9 @@ Aplikace je navržená tak, aby šla nasadit jako klasický 3-tier:
 | ----------------------------------------------------- | ---------------------------------------- | --------------------------------------------------------------- |
 | `DATABASE_URL`                                        | `jdbc:postgresql://localhost:5432/bezcisobe` | JDBC URL                                                        |
 | `DATABASE_USERNAME` / `DATABASE_PASSWORD`             | `postgres` / `postgres`                  | DB přístup                                                      |
-| `JWT_SECRET`                                          | dev placeholder                          | HMAC-SHA256 podpisový klíč                                       |
+| `JWT_SECRET`                                          | dev placeholder                          | HMAC-SHA256 podpisový klíč. Mimo `dev`/`test` povinný, min. 32 bajtů – jinak se aplikace odmítne spustit. |
 | `JWT_EXPIRATION_MS`                                   | `86400000` (24 h)                        | Platnost JWT                                                    |
+| `APP_CORS_ALLOWED_ORIGINS`                            | `http://localhost:5173`                  | Čárkou oddělený seznam povolených CORS originů                  |
 | `MAIL_HOST` / `MAIL_PORT`                             | `sandbox.smtp.mailtrap.io` / `2525`      | SMTP                                                            |
 | `MAIL_USERNAME` / `MAIL_PASSWORD`                     | prázdné                                  | SMTP credentials                                                |
 | `MAIL_FROM`                                           | `no-reply@bezcisobe.local`               | From: adresa odchozích e-mailů                                  |
@@ -874,7 +942,9 @@ Pattern v `application.yml`:
 ### 9.3 Monitoring
 
 - `GET /actuator/health` – pro health-check (liveness/readiness probe).
-- `GET /actuator/info` – build & verze.
+- `GET /actuator/info` – build & verze. `management.info.env.enabled=false`,
+  takže `/actuator/info` už nezveřejňuje proměnné prostředí ani systémová
+  metadata anonymním volajícím.
 - Detaily `health` jsou viditelné jen autentizovaným volajícím
   (`management.endpoint.health.show-details=when_authorized`).
 

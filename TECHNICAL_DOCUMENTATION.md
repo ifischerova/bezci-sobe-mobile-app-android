@@ -29,7 +29,7 @@ current version has a real backend with a database and JWT authentication.
 - **Framework**: Spring Boot 3.2 (Java 17)
 - **Security**: Spring Security + stateless JWT (jjwt 0.12.5), method security (`@PreAuthorize`)
 - **ORM**: Spring Data JPA + Hibernate
-- **DB migrations**: Flyway (V1–V9)
+- **DB migrations**: Flyway (structural V1, V2, V10–V12 always; demo seed V3–V9 dev-only)
 - **Database**: PostgreSQL 14+ (prod/dev), H2 in-memory (tests)
 - **Validation**: `spring-boot-starter-validation` (Bean Validation) + custom `@ValidRideRequest` cross-field constraint
 - **API docs**: springdoc-openapi 2.3 (Swagger UI at `/swagger-ui.html`)
@@ -76,8 +76,9 @@ current version has a real backend with a database and JWT authentication.
         │   └── validation/       # @ValidRideRequest + ConstraintValidator
         └── resources/
             ├── application.yml          # Postgres, Flyway, JWT, Actuator, Swagger, logging
-            ├── application-dev.yml      # Dev profile
-            └── db/migration/V1..V9__*.sql
+            ├── application-dev.yml      # Dev profile (adds db/seed to Flyway locations)
+            ├── db/migration/            # Structural migrations (V1, V2, V10, V11, V12) – all envs
+            └── db/seed/                 # Demo seed migrations (V3..V9) – dev profile only
 ```
 
 ### 2.2 Pages
@@ -86,7 +87,9 @@ The app has **9 different pages**:
 
 1. **HomePage** (`/`) – Landing page with carpooling benefits
 2. **AboutPage** (`/about`) – About the project, our vision and values
-3. **RacesPage** (`/races`) – Main page – race list and ride management
+3. **RacesPage** (`/races`) – Main page – race list and ride management.
+   The initial races/rides loads have error handling: a failed fetch shows
+   an inline error card with a Retry button (rather than a blank page)
 4. **OrganizersPage** (`/organizers`) – Info for race organizers
 5. **LoginPage** (`/login`) – Login with validation; surfaces a 403
    "verify your email" state with an inline "Resend verification email" form
@@ -170,11 +173,28 @@ database. The frontend uses LocalStorage only for the JWT token
 All domain data (users, races, rides, reference tables) lives in the
 database and the frontend fetches it over REST.
 
-The database schema and initial data are managed by Flyway with seven
-migrations:
+The database schema is managed by Flyway. The migrations are split into two
+locations so production never ships demo data:
+
+- **Structural migrations** live in `classpath:db/migration` and run in
+  **every** environment (the base `application.yml` sets
+  `spring.flyway.locations: classpath:db/migration`).
+- **Demo seed migrations** (`V3`–`V9`) live in `classpath:db/seed` and run
+  **only under the `dev` profile**, which extends the locations to
+  `classpath:db/migration,classpath:db/seed` (`application-dev.yml`). On a
+  fresh prod database the schema is created but there is **no** seeded admin
+  or demo data — accounts must be created through registration.
+
+**Structural migrations (`db/migration`, all environments):**
 
 - `V1__create_schema.sql` – tables and relationships
 - `V2__seed_reference_data.sql` – reference tables (track lengths, track types, certifications, calendars)
+- `V10__email_verification_and_reset.sql` – adds `users.email_verified` and the `verification_tokens` / `password_reset_tokens` tables
+- `V11__user_language.sql` – adds `users.language` (`cs`/`en`, `CHECK`-constrained, default `cs`) for per-user backend localization
+- `V12__ride_version.sql` – adds the `rides.version` column used for JPA optimistic locking on seat changes
+
+**Demo seed migrations (`db/seed`, dev profile only):**
+
 - `V3__seed_users_and_races.sql` – initial test users (BCrypt cost-10, self-verified by a test) and 10 hand-crafted races for 2026
 - `V4__seed_rides.sql` – sample rides for two of those races
 - `V5__seed_more_races_users_rides.sql` – 851 races for the rest of the 2026 season (scraped from [ceskybeh.cz/terminovka](https://ceskybeh.cz/terminovka/)), 8 more accounts, and 25 sample rides; race ids start at 100 so the 1..99 range stays free for hand-curated entries
@@ -188,8 +208,9 @@ migrations:
 ### 4.1 API Service
 
 `apiService.ts` is a thin REST client over `fetch` that calls the backend
-at `http://localhost:8080/api`. The token from login is automatically
-attached as `Authorization: Bearer <token>`.
+at the base URL from `import.meta.env.VITE_API_BASE` (default
+`http://localhost:8080/api`; see `.env.example`). The token from login is
+automatically attached as `Authorization: Bearer <token>`.
 
 **Login and registration:**
 
@@ -213,11 +234,14 @@ attached as `Authorization: Bearer <token>`.
   frontend dropdown only ever receives upcoming races sorted by date
   ascending; today's races stay visible until midnight Europe/Prague
 - `getRaceById(id)` – GET `/races/{id}`
-- the backend additionally offers `GET /races/search?q=&from=&trackTypeId=&page=&size=&sort=` with paging and filters — a complex JPQL query defined via `@Query` on `RaceRepository`. This endpoint keeps its independent `from` filter and does **not** apply the upcoming-only filter automatically.
+- the backend additionally offers `GET /races/search?q=&from=&trackTypeId=&page=&size=&sort=` with paging and filters — a complex JPQL query defined via `@Query` on `RaceRepository`. This endpoint keeps its independent `from` filter and does **not** apply the upcoming-only filter automatically. The nullable `:query` parameter is wrapped in `CAST(:query AS string)` so that a missing search term is bound as text rather than as `bytea` — without the cast PostgreSQL tried to run `lower(bytea)` on a null parameter and returned a 500.
 
 **Rides:**
 
-- `getRidesByRace(raceId)` – GET `/rides?raceId=...`
+- `getRidesByRace(raceId)` – GET `/rides?raceId=...`. The backing query
+  `RideRepository.findByRaceIdWithUserAndRace` uses a `JOIN FETCH` on the
+  ride's `user` and `race`, so the list is loaded without an N+1 round-trip
+  per ride
 - `createRide(payload)` – POST `/rides`
 - `updateRide(id, payload)` – PUT `/rides/{id}` (owner only)
 - `deleteRide(id)` – DELETE `/rides/{id}` (owner only)
@@ -325,14 +349,15 @@ enum Role {
 **What I test:**
 
 - `apiService.test.ts` – all API functions
-- `validation.test.ts` – validation functions for email, password, etc.
+- `validation.test.ts` – validation functions (`validateEmail`, `validateUsername`, `validatePassword`) extracted to `src/utils/validation.ts`
 - `Footer.test.tsx` – footer component
 - `HomePage.test.tsx` – home page component
 - `LoginPage.test.tsx` – login page with validation
+- `ProfilePage.test.tsx` – user profile page
 - `ThemeContext.test.tsx` – OS-preference fallback, localStorage override, toggle, throws outside provider
 - `ThemeSwitcher.test.tsx` – Sun/Moon rendering, click toggles, English aria-labels under `en` locale
 
-**35 unit tests in total across 7 files** (verified with `npm test -- --run`)
+**41 unit tests in total across 8 files** (verified with `npm test -- --run`)
 
 **How to run:**
 
@@ -485,6 +510,13 @@ The app works on all devices:
 - **Accept an offer**: a logged-in user can accept an offer from another driver
 - **Cancel acceptance**: I can cancel my acceptance of a ride
 
+Seat changes are concurrency-safe: the `Ride` entity carries a JPA
+`@Version` column (added in migration `V12`), so `acceptRide` /
+`cancelRideAcceptance` flush under optimistic locking. If two users grab
+the last seat at once, the loser's `OptimisticLockingFailureException` is
+caught in the service and translated into a `400 Bad Request`
+(`error.ride.seat_conflict`) rather than corrupting the seat count.
+
 **Notifications and confirmation prompts:**
 
 Success and error feedback for create / update / accept / cancel /
@@ -500,8 +532,9 @@ are not used; every message comes from the cs/en i18n dictionary
 
 ### 8.2 User accounts
 
-**Test accounts (DEV / DEMO ONLY — must be removed before any production
-deployment; the documented passwords are NOT considered secrets):**
+**Test accounts (DEV / DEMO ONLY — these are created only by the `db/seed`
+migrations under the `dev` profile and never exist in production; the
+documented passwords are NOT considered secrets):**
 
 - Admin: `admin` / `admin123` (`ROLE_ADMIN` + `ROLE_USER`)
 - Users: `ivka` / `ivka123`, `jana.novakova` / `password123`
@@ -522,6 +555,11 @@ deployment; the documented passwords are NOT considered secrets):**
   `AuthService` generates a 24h-expiring `VerificationToken`, and
   `EmailService` sends a link to the user. The page swaps to a
   "Check your inbox" state with a Resend button.
+- Registration is **non-enumerating on email**: a duplicate username is
+  reported specifically, but a duplicate email returns a generic conflict
+  (`error.auth.registration_conflict`) — the real reason is only logged
+  server-side, so the response can't be used to probe which emails are
+  registered.
 
 **Email verification:**
 
@@ -601,10 +639,11 @@ In the `.npmrc` file I have:
 - **XSS protection**: React automatically escapes inputs
 - **TypeScript**: helps prevent bugs while writing the code
 - **Password hashing**: BCrypt cost-10 via Spring `BCryptPasswordEncoder`
-- **Authentication**: stateless JWT (HS256, 24 h validity), Spring Security filter. The signing secret is read from the `JWT_SECRET` env var with a clearly-marked dev placeholder as the fallback — production deployments must set the variable.
+- **Authentication**: stateless JWT (HS256, 24 h validity), Spring Security filter. The signing secret is read from the `JWT_SECRET` env var. `JwtTokenProvider` validates the secret on startup (`@PostConstruct`): outside the `dev`/`test` profiles the app **refuses to start** if the secret is still the committed placeholder or is shorter than 32 bytes (HS256 minimum), so a weak or default secret can never reach production.
+- **Identity binding**: the JWT subject is the user's immutable **id** (a UUID), with the username carried only as a secondary claim. The auth filter resolves the principal via `UserDetailsServiceImpl.loadUserById(...)`, so renaming a user never invalidates or misattributes a token.
 - **Secret configuration**: Postgres credentials (`DATABASE_URL`, `DATABASE_USERNAME`, `DATABASE_PASSWORD`) and the JWT secret (`JWT_SECRET`) are read exclusively from env vars; the YAML only holds dev defaults for local runs, those values should never reach any production environment.
 - **Method-level authorization**: `@EnableMethodSecurity` + `@PreAuthorize("hasRole('ADMIN')")` on `AdminController`. The same rule is duplicated on the URL filter (`/api/admin/**` → `hasRole("ADMIN")`) — defence in depth.
-- **CORS**: explicitly allowed only for the Vite dev server (`http://localhost:5173`)
+- **CORS**: allowed origins are configurable via `app.cors.allowed-origins` (env `APP_CORS_ALLOWED_ORIGINS`), defaulting to the Vite dev server (`http://localhost:5173`).
 - **Global exception handler**: a stack trace never leaks to the client, only `ErrorResponse`. The catch-all handler logs at `ERROR` and returns 500 with a neutral message, so internal details never reach the user.
 
 ### 10.3 Roles and admin endpoints
@@ -645,8 +684,9 @@ Spring Boot Actuator exposes a minimal monitoring surface:
 
 Details inside `health` are visible only to an authenticated caller
 (`show-details=when_authorized`), so an anonymous visitor can't see the
-internal state. Other actuator endpoints are intentionally not exposed
-in `application.yml`.
+internal state. The `info` endpoint's environment contributor is disabled
+(`management.info.env.enabled=false`) so it can't leak config values. Other
+actuator endpoints are intentionally not exposed in `application.yml`.
 
 ### 10.6 API documentation – Swagger / OpenAPI
 
@@ -667,7 +707,7 @@ browser. Each endpoint carries `@Operation` with a summary and
 ### 11.1 Operational assumptions
 
 - The backend needs a running PostgreSQL on `localhost:5432` with the `bezcisobe` database (default parameters in `application.yml`, overridable via the `DATABASE_URL`, `DATABASE_USERNAME`, `DATABASE_PASSWORD` env vars).
-- The frontend expects the backend at `http://localhost:8080`. The address is hard-coded in `apiService.ts` – for production it would be in an env var.
+- The frontend reads the backend base URL from the `VITE_API_BASE` build-time env var (default `http://localhost:8080/api`); `.env.example` documents it, so a production build just points the variable at the real API host.
 - The JWT secret is read from the `JWT_SECRET` env var; the YAML only holds a dev placeholder, so the app boots out of the box but a real secret has to be set in production (Vault, Azure Key Vault, …).
 - Email delivery uses `spring-boot-starter-mail`. The `dev` profile defaults
   to `app.mail.log-only=true`, which prints the email body + link to the
@@ -684,12 +724,11 @@ For real-world use, the app would still need:
 - In-app / push notifications and marketing-style email digests
   (transactional email already covers verification, password
   reset, password change, account deletion, ride accept / cancel
-  / delete by driver, and admin force-delete — see §13 below)
+  / delete by driver, and admin force-delete — see §11.3 above)
 - Map integration
 - Driver / passenger ratings
 - Payment gateway
 - Refresh tokens + JWT revocation
-- Native mobile app
 
 ### 11.3 Localization (i18n)
 
@@ -791,7 +830,88 @@ npm run build       # tsc + vite build → dist/
 npm run preview     # local preview of the production build
 ```
 
-## 13. Conclusion
+## 13. Android application
+
+Alongside the web frontend there is a native **Android** client in the
+`android/` directory that talks to the same Spring Boot REST API. It is a
+single-module Kotlin app built with **Jetpack Compose**.
+
+### 13.1 Architecture
+
+- **MVVM**: each screen has a `@HiltViewModel` that exposes a single
+  immutable `StateFlow<…UiState>` (sealed `Loading` / `Success` / `Error`
+  states), e.g. `RaceListViewModel`, `RaceDetailViewModel`, `AuthViewModel`,
+  `SettingsViewModel`, plus a shared `SessionViewModel`. Compose collects
+  the state with `collectAsStateWithLifecycle`.
+- **Dependency injection — Hilt**: `BezciSobeApplication` is annotated
+  `@HiltAndroidApp`, `MainActivity` is `@AndroidEntryPoint`, and wiring lives
+  in `di/` (`NetworkModule`, `DatabaseModule`, `RepositoryModule`, all
+  `@InstallIn(SingletonComponent::class)`).
+- **Networking — Retrofit + kotlinx-serialization**: `data/remote/ApiService`
+  declares the suspend endpoints (`getRaces`, `getRace`, `login`, `register`,
+  `me`, `getRides`, `createRide`, `deleteRide`, `acceptRide`, `cancelRide`);
+  an `AuthInterceptor` attaches the bearer token. JSON is decoded with a
+  lenient `kotlinx.serialization` `Json` instance.
+- **Offline-first cache — Room**: races are persisted in a Room database
+  (`AppDatabase`, `RaceDao`) and the UI observes the DB as the single source
+  of truth; `RaceRepository.refresh()` pulls from the API and upserts into
+  Room. (Rides are intentionally network-only — they change too often to
+  cache.)
+- **Bundled JSON fallback**: when the network is unavailable **and** the Room
+  cache is empty, the repository seeds itself from a bundled
+  `app/src/main/assets/sample_races.json` (a handful of sample Czech races)
+  so the race list is never blank on a first cold, offline launch.
+- **Preferences — DataStore**: `SettingsRepository` stores the JWT token,
+  user id/username, the UI language (`cs`/`en`, default `cs`) and the theme
+  (`LIGHT`/`DARK`/`SYSTEM`) in Preferences DataStore.
+- **Navigation Compose**: routes are centralised in `ui/navigation`
+  (`BezciNavGraph`, `Routes`, `AppScaffold`).
+- **Background work — WorkManager**: `UpcomingRaceWorker` (a `@HiltWorker`
+  `CoroutineWorker`) is enqueued as a unique **daily** `PeriodicWorkRequest`
+  (1 day, network-constrained) and posts a notification about the next
+  upcoming race. WorkManager's default initialiser is removed in the
+  manifest and replaced by a Hilt `Configuration.Provider`.
+
+### 13.2 Feature set
+
+- **Race list + search** (`RaceListScreen`): a `LazyColumn` of upcoming
+  races with a search field (filters by name/place; the query survives
+  rotation via `rememberSaveable`).
+- **Race detail** (`RaceDetailScreen`): date, start time, place, and a
+  **clickable website link** that opens the browser (`ACTION_VIEW`), with
+  back navigation via the app bar.
+- **Login / register** (`LoginScreen`, `RegisterScreen`): registration sends
+  the currently selected UI language so backend emails arrive localized.
+- **Settings** (`SettingsScreen`): theme (light/dark/system) and language
+  (cs/en) radio groups.
+- **Carpooling flow** (inside `RaceDetailScreen`): per-race OFFER and REQUEST
+  rides with offer / request / accept / cancel / delete actions over the
+  ride endpoints. The flow is **login-gated** — the create-ride FAB and the
+  accept/cancel/delete actions only appear for a logged-in user (driven by
+  `isLoggedIn` / `currentUserId`); anonymous visitors see a login hint.
+
+### 13.3 Toolchain
+
+| Tool | Version |
+|---|---|
+| Gradle | 8.11.1 |
+| Android Gradle Plugin | 8.7.3 |
+| Kotlin | 2.0.21 |
+| compileSdk / targetSdk | 35 |
+| minSdk | 26 |
+| Java / JVM target | 17 |
+| Compose BOM | 2024.12.01 |
+
+The app reaches the backend at `http://10.0.2.2:8080/api/` — `10.0.2.2`
+is the Android emulator's alias for the host machine's `localhost`, so the
+emulator can reach a backend running on the developer's machine.
+
+For build, run, seed-login and test instructions (including
+`./gradlew :app:testDebugUnitTest` for JVM unit tests and
+`:app:connectedDebugAndroidTest` for the Compose UI test) see
+[`android/README.md`](android/README.md).
+
+## 14. Conclusion
 
 Key capabilities the project ships with:
 
@@ -803,11 +923,12 @@ Key capabilities the project ships with:
 - Real backend with PostgreSQL persistence
 - JWT authentication + BCrypt password hashing
 - Responsive design
-- Frontend unit tests (Vitest, 35 tests)
+- Frontend unit tests (Vitest, 41 tests)
 - Backend tests (JUnit 5 + Mockito + MockMvc)
 - E2E tests (Playwright, 22 scenarios)
 - Modern UI/UX
 - TypeScript typing + Bean Validation on the backend
+- Native Android client (Kotlin + Jetpack Compose, MVVM + Hilt, offline-first Room cache)
 
 ### What I learned
 
@@ -831,7 +952,6 @@ Key capabilities the project ships with:
 - Profile and car photos
 - Cost-sharing + payment gateway
 - Refresh tokens and revocable JWTs
-- Mobile app (React Native)
 
 ---
 

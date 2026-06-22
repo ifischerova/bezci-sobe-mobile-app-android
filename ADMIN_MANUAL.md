@@ -27,6 +27,7 @@ nedostupné běžnému uživateli. Předpokládá, že už znáš
 8. [Nastavení e-mailového toku](#8-nastavení-e-mailového-toku)
 9. [Bezpečnostní doporučení](#9-bezpečnostní-doporučení)
 10. [Řešení provozních incidentů](#10-řešení-provozních-incidentů)
+11. [Nativní aplikace pro Android](#11-nativní-aplikace-pro-android)
 
 ---
 
@@ -62,6 +63,14 @@ uvedené.
 
 Pokud nemáš přístupové údaje, kontaktuj svého system
 administrátora.
+
+> **Migrace vs. demo seed:** Strukturální Flyway migrace
+> (`V1`, `V2`, `V10`, `V11`, `V12` ve složce `db/migration`) běží
+> **vždy**, v každém prostředí. Demonstrační seed (`V3`–`V9` ve
+> složce `db/seed`, včetně ukázkového účtu `admin` / `admin123`) se
+> přidává **jen v profilu `dev`**. V produkci se proto demo seed
+> **nespustí** a žádný administrátorský účet automaticky nevznikne —
+> administrátora je nutné zřídit jiným způsobem (viz §2.1).
 
 > **DŮLEŽITÉ – Před produkčním nasazením:**
 > 1. Změň heslo všech počátečně seedovaných účtů.
@@ -286,6 +295,11 @@ Autentizovaný admin (`management.endpoint.health.show-details=when_authorized`)
 }
 ```
 
+> **Bezpečnost:** `/actuator/info` je veřejně dostupný, a proto
+> **už nezveřejňuje proměnné prostředí** ani systémová metadata
+> (v `application.yml` je `management.info.env.enabled=false`).
+> Vrací jen statické údaje o aplikaci výše.
+
 ### 7.3 Logy aplikace
 
 Logy backendu jdou na **stdout**. Při běhu přes `mvn spring-boot:run`
@@ -314,8 +328,18 @@ Backend posílá e-maily (verifikace registrace + reset hesla) přes
 
 | Profil  | Výchozí chování                                                                                          |
 | ------- | -------------------------------------------------------------------------------------------------------- |
-| `dev`   | `app.mail.log-only = true` → e-mail se jen vypíše do logu, žádný SMTP konekt.                            |
-| (žádný) | `app.mail.log-only = false` → posílá přes SMTP server definovaný v `MAIL_HOST` / `MAIL_PORT`.            |
+| `dev`   | `app.mail.log-only = true` → e-mail se jen vypíše do logu (celý obsah včetně odkazu), žádný SMTP konekt. Navíc se vrství demo seed (`db/seed`). |
+| (žádný / produkce) | `app.mail.log-only = false` → posílá přes SMTP server definovaný v `MAIL_HOST` / `MAIL_PORT` (nebo nastav `MAIL_LOG_ONLY=true`). |
+
+Backend ve vývoji se spouští s profilem `dev`:
+
+```bash
+mvn spring-boot:run -Dspring-boot.run.profiles=dev
+```
+
+V tomto režimu jdou e-maily jen do logu a aplikace nepotřebuje SMTP
+ani produkční tajemství. Produkční profil naopak vyžaduje povinné
+proměnné prostředí ze §9.1.
 
 ### 8.2 Konfigurace SMTP
 
@@ -356,26 +380,42 @@ INFO ... c.b.b.service.EmailService - Email sent to user@example.com (Běžci so
 
 ## 9. Bezpečnostní doporučení
 
-### 9.1 Před produkčním nasazením
+### 9.1 Povinné proměnné prostředí pro produkci
 
-1. **JWT secret** – nastav `JWT_SECRET` na náhodný 256-bitový+
+Produkční profil (bez aktivního `dev`) vyžaduje následující
+proměnné. Bez nich se aplikace buď odmítne spustit, nebo poběží
+nebezpečně:
+
+| Proměnná | Účel |
+| -------- | ---- |
+| `JWT_SECRET` | Tajný klíč pro podpis JWT. **Aplikace se odmítne spustit**, pokud je ponechaný zakomitovaný placeholder nebo je klíč kratší než **32 bajtů (256 bitů)**. |
+| `DATABASE_URL` / `DATABASE_USERNAME` / `DATABASE_PASSWORD` | Připojení k PostgreSQL. |
+| `MAIL_*` (`MAIL_HOST`, `MAIL_PORT`, `MAIL_USERNAME`, `MAIL_PASSWORD`, `MAIL_FROM`) | SMTP pro odesílání e-mailů — **nebo** nastav `MAIL_LOG_ONLY=true`, pokud e-maily reálně odesílat nechceš. |
+| `APP_URL` | Základní URL frontendu použitá v odkazech v e-mailech. |
+| `APP_CORS_ALLOWED_ORIGINS` | Čárkou oddělený seznam povolených originů pro CORS (žádné `*`). |
+
+### 9.2 Další doporučení před produkčním nasazením
+
+1. **JWT secret** – `JWT_SECRET` nastav na náhodný 256-bitový+
    řetězec uložený v bezpečném úložišti (Vault, Azure Key Vault,
-   AWS Secrets Manager).
+   AWS Secrets Manager). Viz povinné chování výše.
 2. **DB credentials** – `DATABASE_USERNAME` / `DATABASE_PASSWORD`
    z env proměnných, nikdy hardcoded.
 3. **HTTPS** – nasazuj backend i frontend výhradně přes HTTPS.
    Frontend posílá JWT v `Authorization` hlavičce, na HTTP by
    mohl být odposlechnut.
-4. **CORS** – `CorsConfig` musí mít explicitně povolené jen
-   produkční origins frontendu. Žádné `*`.
-5. **Heslo `admin` účtu** – změň ihned po prvním přihlášení.
+4. **CORS** – `APP_CORS_ALLOWED_ORIGINS` musí mít explicitně
+   povolené jen produkční origins frontendu. Žádné `*`.
+5. **Administrátorský účet** – v produkci se demo seed
+   (`admin` / `admin123`) **nespustí** (viz §2), administrátora
+   zřiď přes DBA proces (viz §2.1).
 6. **Mail credentials** – `MAIL_USERNAME` / `MAIL_PASSWORD` rovněž
    z env proměnných.
 7. **Logování citlivých dat** – nezapínat DEBUG / TRACE v produkci
    na balíčcích `org.springframework.security` nebo
    `cz.bezcisobe.backend.security` (mohly by se logovat tokeny).
 
-### 9.2 Periodická údržba
+### 9.3 Periodická údržba
 
 | Úkol                                      | Frekvence       |
 | ----------------------------------------- | --------------- |
@@ -384,7 +424,7 @@ INFO ... c.b.b.service.EmailService - Email sent to user@example.com (Běžci so
 | Kontrola CVE v závislostech (`mvn versions:display-dependency-updates`, `npm audit`) | Měsíčně          |
 | Backup PostgreSQL                         | Denně, vlastní politika retenčce |
 
-### 9.3 Co dělat při podezření na kompromitaci
+### 9.4 Co dělat při podezření na kompromitaci
 
 1. **Otoč `JWT_SECRET`** – všechny stávající JWT okamžitě přestanou
    platit. Všichni uživatelé se musí znovu přihlásit.
@@ -461,6 +501,28 @@ Doporučujeme nasadit jako cron job (pgAgent / pg_cron).
    sleduj, jaké dotazy Hibernate generuje.
 3. U vyhledávacích endpointů se ujisti, že volající posílají
    `page` a `size` – bez paginace může výpis stáhnout všechno.
+
+---
+
+## 11. Nativní aplikace pro Android
+
+Vedle webového frontendu existuje i **nativní aplikace pro Android**
+(Kotlin / Jetpack Compose), která se připojuje ke **stejnému
+backendu** a stejnému REST API jako web. Z provozního hlediska je to
+další klient — nemá vlastní backend ani vlastní administraci.
+
+- **Připojení:** Z emulátoru se aplikace připojuje na
+  `http://10.0.2.2:8080/api` (alias hostitelského stroje). Pro
+  fyzické zařízení je nutné nasměrovat `BASE_URL` na LAN IP stroje
+  s backendem nebo na dostupné nasazení.
+- **CORS se na ni nevztahuje** — jde o nativního HTTP klienta, ne
+  o prohlížeč; `APP_CORS_ALLOWED_ORIGINS` řeší jen webový frontend.
+- **Sestavení a spuštění:** viz `android/README.md` (Android Studio,
+  JDK 17, `./gradlew :app:testDebugUnitTest` apod.).
+
+Pro uživatele aplikace nabízí stejné hlavní funkce jako web
+(závody, registrace/přihlášení, spolujízda, nastavení motivu
+a jazyka) — viz USER_MANUAL §15.
 
 ---
 

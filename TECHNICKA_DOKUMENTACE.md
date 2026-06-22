@@ -25,7 +25,7 @@ Běžci sobě je moderní full-stack webová aplikace pro sdílení dopravy mezi
 - **Framework**: Spring Boot 3.2 (Java 17)
 - **Bezpečnost**: Spring Security + stateless JWT (jjwt 0.12.5), method security (`@PreAuthorize`)
 - **ORM**: Spring Data JPA + Hibernate
-- **Migrace DB**: Flyway (V1–V9)
+- **Migrace DB**: Flyway (strukturální V1, V2, V10–V12 vždy; demo seed V3–V9 jen v dev)
 - **Databáze**: PostgreSQL 14+ (produkce/dev), H2 in-memory (testy)
 - **Validace**: `spring-boot-starter-validation` (Bean Validation) + vlastní `@ValidRideRequest` cross-field constraint
 - **API dokumentace**: springdoc-openapi 2.3 (Swagger UI na `/swagger-ui.html`)
@@ -72,8 +72,9 @@ Běžci sobě je moderní full-stack webová aplikace pro sdílení dopravy mezi
         │   └── validation/       # @ValidRideRequest + ConstraintValidator
         └── resources/
             ├── application.yml          # Postgres, Flyway, JWT, Actuator, Swagger, logging
-            ├── application-dev.yml      # Dev profil
-            └── db/migration/V1..V9__*.sql
+            ├── application-dev.yml      # Dev profil (přidává db/seed do Flyway locations)
+            ├── db/migration/            # Strukturální migrace (V1, V2, V10, V11, V12) – všechna prostředí
+            └── db/seed/                 # Demo seed migrace (V3..V9) – jen dev profil
 ```
 
 ### 2.2 Popis jednotlivých stránek
@@ -82,7 +83,9 @@ Aplikace má **9 různých stránek**:
 
 1. **HomePage** (`/`) - Úvodní stránka s výhodami carpoolingu
 2. **AboutPage** (`/about`) - O projektu, naše vize a hodnoty
-3. **RacesPage** (`/races`) - Hlavní stránka - seznam závodů a správa jízd
+3. **RacesPage** (`/races`) - Hlavní stránka - seznam závodů a správa jízd.
+   Počáteční načtení závodů/jízd má ošetření chyb: při neúspěšném fetchi se
+   zobrazí inline chybová karta s tlačítkem Zkusit znovu (místo prázdné stránky)
 4. **OrganizersPage** (`/organizers`) - Info pro pořadatele závodů
 5. **LoginPage** (`/login`) - Přihlášení s validací; ukazuje 403 stav
    „ověř si e-mail" s in-line formulářem pro znovuzaslání odkazu
@@ -164,10 +167,28 @@ světlý).
 
 Aplikace má reálný Spring Boot backend, který data ukládá do PostgreSQL databáze. Frontend používá LocalStorage pouze pro JWT token (`bezci_sobe_token`), aby uživatel zůstal přihlášený i po obnovení stránky. Veškerá doménová data (uživatelé, závody, jízdy, číselníky) jsou v databázi a frontend si je tahá přes REST.
 
-Schéma databáze a počáteční data spravuje Flyway sedmi migracemi:
+Schéma databáze spravuje Flyway. Migrace jsou rozdělené do dvou umístění,
+aby do produkce nikdy nešla demo data:
+
+- **Strukturální migrace** jsou v `classpath:db/migration` a běží v
+  **každém** prostředí (základní `application.yml` nastavuje
+  `spring.flyway.locations: classpath:db/migration`).
+- **Demo seed migrace** (`V3`–`V9`) jsou v `classpath:db/seed` a běží
+  **pouze v `dev` profilu**, který rozšiřuje locations na
+  `classpath:db/migration,classpath:db/seed` (`application-dev.yml`). Na
+  čerstvé produkční databázi se vytvoří jen schéma, **žádný** naseedovaný
+  admin ani demo data — účty se musejí vytvořit přes registraci.
+
+**Strukturální migrace (`db/migration`, všechna prostředí):**
 
 - `V1__create_schema.sql` – tabulky a vztahy
 - `V2__seed_reference_data.sql` – číselníky (délky tratí, typy tratí, certifikace, kalendáře)
+- `V10__email_verification_and_reset.sql` – přidává `users.email_verified` a tabulky `verification_tokens` / `password_reset_tokens`
+- `V11__user_language.sql` – přidává `users.language` (`cs`/`en`, omezeno `CHECK`, default `cs`) pro lokalizaci backendu per uživatel
+- `V12__ride_version.sql` – přidává sloupec `rides.version` používaný pro JPA optimistické zamykání při změnách obsazení míst
+
+**Demo seed migrace (`db/seed`, jen dev profil):**
+
 - `V3__seed_users_and_races.sql` – počáteční testovací uživatelé (BCrypt cost-10, samoověřené testem) a 10 ručně vytvořených závodů pro rok 2026
 - `V4__seed_rides.sql` – ukázkové jízdy ke dvěma závodům
 - `V5__seed_more_races_users_rides.sql` – 851 závodů pro zbytek sezóny 2026 (data scrapnutá z [ceskybeh.cz/terminovka](https://ceskybeh.cz/terminovka/)), dalších 8 účtů a 25 ukázkových jízd; IDs závodů startují na 100, aby zůstal rozsah 1..99 pro ručně přidávaná data
@@ -180,7 +201,7 @@ Schéma databáze a počáteční data spravuje Flyway sedmi migracemi:
 
 ### 4.1 API Service
 
-Soubor `apiService.ts` je tenký REST klient nad `fetch`, který volá backend na `http://localhost:8080/api`. Token z přihlášení automaticky přikládá do hlavičky `Authorization: Bearer <token>`.
+Soubor `apiService.ts` je tenký REST klient nad `fetch`, který volá backend na základní URL z `import.meta.env.VITE_API_BASE` (default `http://localhost:8080/api`; viz `.env.example`). Token z přihlášení automaticky přikládá do hlavičky `Authorization: Bearer <token>`.
 
 **Přihlášení a registrace:**
 
@@ -205,11 +226,14 @@ Soubor `apiService.ts` je tenký REST klient nad `fetch`, který volá backend n
   vzestupně podle data; dnešní závody zůstávají viditelné až do
   půlnoci v Europe/Prague
 - `getRaceById(id)` – GET `/races/{id}`
-- backend navíc nabízí `GET /races/search?q=&from=&trackTypeId=&page=&size=&sort=` se stránkováním a filtry — komplexní JPQL dotaz definovaný přes `@Query` na `RaceRepository`. Tento endpoint má vlastní nezávislý filtr `from` a automaticky upcoming-only filtr **neaplikuje**.
+- backend navíc nabízí `GET /races/search?q=&from=&trackTypeId=&page=&size=&sort=` se stránkováním a filtry — komplexní JPQL dotaz definovaný přes `@Query` na `RaceRepository`. Tento endpoint má vlastní nezávislý filtr `from` a automaticky upcoming-only filtr **neaplikuje**. Nullovatelný parametr `:query` je obalen do `CAST(:query AS string)`, aby se chybějící hledaný výraz bindoval jako text, ne jako `bytea` — bez castu PostgreSQL spouštěl `lower(bytea)` nad null parametrem a vracel 500.
 
 **Jízdy (rides):**
 
-- `getRidesByRace(raceId)` – GET `/rides?raceId=...`
+- `getRidesByRace(raceId)` – GET `/rides?raceId=...`. Dotaz
+  `RideRepository.findByRaceIdWithUserAndRace` používá `JOIN FETCH` na
+  `user` a `race` dané jízdy, takže se seznam načte bez N+1 dotazu na
+  každou jízdu zvlášť
 - `createRide(payload)` – POST `/rides`
 - `updateRide(id, payload)` – PUT `/rides/{id}` (jen vlastník)
 - `deleteRide(id)` – DELETE `/rides/{id}` (jen vlastník)
@@ -304,14 +328,15 @@ enum Role {
 **Co testuji:**
 
 - `apiService.test.ts` – všechny API funkce
-- `validation.test.ts` – validační funkce pro email, heslo atd.
+- `validation.test.ts` – validační funkce (`validateEmail`, `validateUsername`, `validatePassword`) vytažené do `src/utils/validation.ts`
 - `Footer.test.tsx` – footer komponenta
 - `HomePage.test.tsx` – home page komponenta
 - `LoginPage.test.tsx` – login page s validací
+- `ProfilePage.test.tsx` – stránka profilu uživatele
 - `ThemeContext.test.tsx` – fallback na OS preferenci, localStorage override, toggle, vyhodí mimo provider
 - `ThemeSwitcher.test.tsx` – render Sun/Moon, klik přepne, anglické aria-labels v `en` lokálu
 
-**Celkem 35 unit testů napříč 7 soubory** (ověřeno přes `npm test -- --run`)
+**Celkem 41 unit testů napříč 8 soubory** (ověřeno přes `npm test -- --run`)
 
 **Jak spustit:**
 
@@ -464,6 +489,14 @@ Aplikace funguje na všech zařízeních:
 - **Přijetí nabídky**: Přihlášený uživatel může přijmout nabídku od jiného řidiče
 - **Zrušení přijetí**: Můžu zrušit, že jedu s někým
 
+Změny obsazení míst jsou odolné vůči souběhu: entita `Ride` má JPA
+`@Version` sloupec (přidaný migrací `V12`), takže `acceptRide` /
+`cancelRideAcceptance` flushují pod optimistickým zámkem. Pokud dva
+uživatelé sáhnou po posledním místě naráz, prohrávajícímu se odchytí
+`OptimisticLockingFailureException` v service vrstvě a přeloží se na
+`400 Bad Request` (`error.ride.seat_conflict`) místo poškození počtu
+obsazených míst.
+
 **Hlášky a potvrzovací dialogy:**
 
 Hlášky o úspěchu / chybě pro vytvoření / úpravu / přijetí / zrušení /
@@ -479,8 +512,9 @@ pocházejí z cs/en i18n slovníku (`races.alert.*` plus `common.confirm`).
 
 ### 8.2 Uživatelské účty
 
-**Testovací účty (POUZE PRO VÝVOJ / DEMO — před produkčním nasazením
-je nutné je smazat; uvedená hesla se nepovažují za tajná):**
+**Testovací účty (POUZE PRO VÝVOJ / DEMO — vytvářejí je jen `db/seed`
+migrace v `dev` profilu a v produkci nikdy neexistují; uvedená hesla se
+nepovažují za tajná):**
 
 - Admin: `admin` / `admin123` (`ROLE_ADMIN` + `ROLE_USER`)
 - Uživatel: `ivka` / `ivka123`, `jana.novakova` / `password123`
@@ -501,6 +535,10 @@ je nutné je smazat; uvedená hesla se nepovažují za tajná):**
   vygeneruje `VerificationToken` s platností 24 hodin a `EmailService`
   pošle odkaz na uvedený e-mail. Stránka se přepne do stavu
   „Zkontroluj si e-mail" s tlačítkem pro znovuzaslání odkazu.
+- Registrace je **neenumerující na e-mail**: duplicitní uživatelské jméno
+  se hlásí konkrétně, ale duplicitní e-mail vrátí obecný konflikt
+  (`error.auth.registration_conflict`) — skutečný důvod se loguje jen na
+  serveru, takže z odpovědi nelze zjistit, které e-maily jsou registrované.
 
 **Ověření e-mailu:**
 
@@ -578,10 +616,11 @@ V `.npmrc` souboru mám nastaveno:
 - **XSS ochrana**: React automaticky escapuje vstupy
 - **TypeScript**: Pomáhá předcházet chybám už při psaní kódu
 - **Hashování hesel**: BCrypt cost-10 přes Spring `BCryptPasswordEncoder`
-- **Autentizace**: stateless JWT (HS256, 24h platnost), filter ve Spring Security. Podpisový secret se čte z env proměnné `JWT_SECRET` s jasně označeným dev placeholderem jako fallbackem — produkční nasazení musí proměnnou nastavit.
+- **Autentizace**: stateless JWT (HS256, 24h platnost), filter ve Spring Security. Podpisový secret se čte z env proměnné `JWT_SECRET`. `JwtTokenProvider` secret validuje při startu (`@PostConstruct`): mimo profily `dev`/`test` se aplikace **odmítne spustit**, pokud je secret stále commitnutý placeholder nebo je kratší než 32 bytů (minimum pro HS256), takže se slabý nebo defaultní secret nikdy nedostane do produkce.
+- **Vázání identity**: subject JWT je neměnné **id** uživatele (UUID), uživatelské jméno se nese jen jako sekundární claim. Auth filter resolvuje principal přes `UserDetailsServiceImpl.loadUserById(...)`, takže přejmenování uživatele token neznehodnotí ani špatně nepřiřadí.
 - **Konfigurace tajemství**: Postgres přístupové údaje (`DATABASE_URL`, `DATABASE_USERNAME`, `DATABASE_PASSWORD`) a JWT secret (`JWT_SECRET`) se čtou výhradně z env proměnných; YAML drží jen dev defaulty pro běh na lokále, do žádného produkčního prostředí by tyto hodnoty nikdy neměly jít.
 - **Autorizace na úrovni metod**: `@EnableMethodSecurity` + `@PreAuthorize("hasRole('ADMIN')")` na `AdminController`. Stejné pravidlo je dublováno i na URL filtru (`/api/admin/**` → `hasRole("ADMIN")`) — defence in depth.
-- **CORS**: explicitně povolený jen pro Vite dev server (`http://localhost:5173`)
+- **CORS**: povolené originy jsou konfigurovatelné přes `app.cors.allowed-origins` (env `APP_CORS_ALLOWED_ORIGINS`), s defaultem na Vite dev server (`http://localhost:5173`).
 - **Globální exception handler**: nikdy neunikne stack trace klientovi, jen `ErrorResponse`. Catch-all handler loguje `ERROR` a vrací 500 s neutrálním textem, takže interní detail nikdy nedoputuje k uživateli.
 
 ### 10.3 Role a admin endpointy
@@ -615,7 +654,7 @@ Spring Boot Actuator vystavuje minimální monitorovací povrch:
 - `GET /actuator/health` – stav aplikace a vnořené probes (`/liveness`, `/readiness`)
 - `GET /actuator/info` – metadata o sestavení (název, verze, popis z `application.yml`)
 
-Detaily ve `health` jsou zobrazené jen autentizovanému volajícímu (`show-details=when_authorized`), aby anonym neviděl interní stav. Ostatní actuator endpointy jsou v `application.yml` schválně neexponované.
+Detaily ve `health` jsou zobrazené jen autentizovanému volajícímu (`show-details=when_authorized`), aby anonym neviděl interní stav. Environment contributor endpointu `info` je vypnutý (`management.info.env.enabled=false`), aby nemohl prozradit konfigurační hodnoty. Ostatní actuator endpointy jsou v `application.yml` schválně neexponované.
 
 ### 10.6 API dokumentace – Swagger / OpenAPI
 
@@ -631,7 +670,7 @@ Konfigurace `OpenApiConfig` přidává JWT bearer security scheme — v UI lze p
 ### 11.1 Provozní předpoklady
 
 - Backend potřebuje běžící PostgreSQL na `localhost:5432` s databází `bezcisobe` (defaultní parametry v `application.yml`, přepsatelné přes env proměnné `DATABASE_URL`, `DATABASE_USERNAME`, `DATABASE_PASSWORD`).
-- Frontend očekává backend na `http://localhost:8080`. Adresa je hard-coded v `apiService.ts` – pro produkci by byla v env proměnné.
+- Frontend čte základní URL backendu z build-time env proměnné `VITE_API_BASE` (default `http://localhost:8080/api`); `.env.example` ji dokumentuje, takže produkční build jen nasměruje proměnnou na reálný API host.
 - JWT secret se čte z `JWT_SECRET` env proměnné; YAML drží jen dev placeholder, takže aplikace funguje out-of-the-box, ale v produkci je nutné secret nastavit (Vault, Azure Key Vault, …).
 - Odesílání e-mailů používá `spring-boot-starter-mail`. Profil `dev` má
   defaultně `app.mail.log-only=true`, takže tělo e-mailu + odkaz se vypíší
@@ -649,12 +688,11 @@ Pro reálný provoz by byla ještě potřeba:
 - In-app / push notifikace a marketingové e-mailové digesty
   (transakční e-maily už pokrývají ověření, reset hesla, změnu
   hesla, smazání účtu, přijetí / zrušení přijetí / smazání jízdy
-  řidičem a administrátorské force-delete — viz §13 níže)
+  řidičem a administrátorské force-delete — viz §11.3 výše)
 - Mapová integrace
 - Hodnocení řidičů / spolujezdců
 - Platební brána
 - Refresh tokeny + odvolávání JWT
-- Nativní mobilní aplikace
 
 ### 11.3 Lokalizace (i18n)
 
@@ -756,7 +794,89 @@ npm run build       # tsc + vite build → dist/
 npm run preview     # lokální preview produkčního buildu
 ```
 
-## 13. Závěr
+## 13. Android aplikace
+
+Vedle webového frontendu je v adresáři `android/` nativní **Android**
+klient, který komunikuje se stejným Spring Boot REST API. Je to
+jednomodulová Kotlin aplikace postavená na **Jetpack Compose**.
+
+### 13.1 Architektura
+
+- **MVVM**: každá obrazovka má `@HiltViewModel`, který vystavuje jediný
+  neměnný `StateFlow<…UiState>` (sealed stavy `Loading` / `Success` /
+  `Error`), např. `RaceListViewModel`, `RaceDetailViewModel`,
+  `AuthViewModel`, `SettingsViewModel` a sdílený `SessionViewModel`. Compose
+  stav sbírá přes `collectAsStateWithLifecycle`.
+- **Dependency injection — Hilt**: `BezciSobeApplication` má anotaci
+  `@HiltAndroidApp`, `MainActivity` je `@AndroidEntryPoint` a zapojení je
+  v `di/` (`NetworkModule`, `DatabaseModule`, `RepositoryModule`, vše
+  `@InstallIn(SingletonComponent::class)`).
+- **Síť — Retrofit + kotlinx-serialization**: `data/remote/ApiService`
+  deklaruje suspend endpointy (`getRaces`, `getRace`, `login`, `register`,
+  `me`, `getRides`, `createRide`, `deleteRide`, `acceptRide`, `cancelRide`);
+  `AuthInterceptor` přikládá bearer token. JSON se dekóduje shovívavou
+  `kotlinx.serialization` instancí `Json`.
+- **Offline-first cache — Room**: závody se perzistují v Room databázi
+  (`AppDatabase`, `RaceDao`) a UI sleduje databázi jako jediný zdroj pravdy;
+  `RaceRepository.refresh()` tahá z API a upsertuje do Room. (Jízdy jsou
+  záměrně jen síťové — mění se moc často na cachování.)
+- **Bundled JSON fallback**: když není dostupná síť **a** Room cache je
+  prázdná, repozitář se naseeduje z přibaleného
+  `app/src/main/assets/sample_races.json` (pár ukázkových českých závodů),
+  takže seznam závodů není při prvním studeném offline spuštění nikdy prázdný.
+- **Předvolby — DataStore**: `SettingsRepository` ukládá JWT token,
+  id/jméno uživatele, jazyk UI (`cs`/`en`, default `cs`) a motiv
+  (`LIGHT`/`DARK`/`SYSTEM`) do Preferences DataStore.
+- **Navigation Compose**: routy jsou centralizované v `ui/navigation`
+  (`BezciNavGraph`, `Routes`, `AppScaffold`).
+- **Práce na pozadí — WorkManager**: `UpcomingRaceWorker` (`@HiltWorker`
+  `CoroutineWorker`) je naplánovaný jako unikátní **denní**
+  `PeriodicWorkRequest` (1 den, s podmínkou sítě) a posílá notifikaci
+  o nejbližším nadcházejícím závodu. Výchozí inicializátor WorkManageru je
+  v manifestu odstraněn a nahrazen Hilt `Configuration.Provider`em.
+
+### 13.2 Funkce
+
+- **Seznam závodů + hledání** (`RaceListScreen`): `LazyColumn`
+  nadcházejících závodů s vyhledávacím polem (filtruje podle názvu/místa;
+  dotaz přežije rotaci díky `rememberSaveable`).
+- **Detail závodu** (`RaceDetailScreen`): datum, čas startu, místo a
+  **klikatelný odkaz na web**, který otevře prohlížeč (`ACTION_VIEW`),
+  s navigací zpět přes app bar.
+- **Přihlášení / registrace** (`LoginScreen`, `RegisterScreen`): registrace
+  posílá aktuálně zvolený jazyk UI, takže e-maily z backendu chodí
+  lokalizované.
+- **Nastavení** (`SettingsScreen`): radio skupiny pro motiv
+  (světlý/tmavý/systém) a jazyk (cs/en).
+- **Carpooling flow** (uvnitř `RaceDetailScreen`): jízdy typu OFFER a REQUEST
+  per závod s akcemi nabídnout / poptat / přijmout / zrušit / smazat přes
+  ride endpointy. Flow je **gated přihlášením** — tlačítko FAB pro vytvoření
+  jízdy i akce přijmout/zrušit/smazat se objeví jen přihlášenému uživateli
+  (řízeno přes `isLoggedIn` / `currentUserId`); anonym vidí výzvu
+  k přihlášení.
+
+### 13.3 Toolchain
+
+| Nástroj | Verze |
+|---|---|
+| Gradle | 8.11.1 |
+| Android Gradle Plugin | 8.7.3 |
+| Kotlin | 2.0.21 |
+| compileSdk / targetSdk | 35 |
+| minSdk | 26 |
+| Java / JVM target | 17 |
+| Compose BOM | 2024.12.01 |
+
+Aplikace volá backend na `http://10.0.2.2:8080/api/` — `10.0.2.2` je
+v Android emulátoru alias pro `localhost` hostitelského stroje, takže
+emulátor dosáhne na backend běžící na vývojářově počítači.
+
+Pokyny pro build, spuštění, demo přihlášení a testy (včetně
+`./gradlew :app:testDebugUnitTest` pro JVM unit testy a
+`:app:connectedDebugAndroidTest` pro Compose UI test) jsou
+v [`android/README.md`](android/README.md).
+
+## 14. Závěr
 
 Klíčové vlastnosti projektu:
 
@@ -768,11 +888,12 @@ Klíčové vlastnosti projektu:
 - Reálný backend s perzistencí v PostgreSQL
 - JWT autentizace + BCrypt hashování hesel
 - Responzivní design
-- Unit testy frontendu (Vitest, 35 testů)
+- Unit testy frontendu (Vitest, 41 testů)
 - Backend testy (JUnit 5 + Mockito + MockMvc)
 - E2E testy (Playwright, 22 scénářů)
 - Moderní UI/UX
 - TypeScript typování + Bean Validation na backendu
+- Nativní Android klient (Kotlin + Jetpack Compose, MVVM + Hilt, offline-first Room cache)
 
 ### Co jsem se naučila
 
@@ -796,7 +917,6 @@ Klíčové vlastnosti projektu:
 - Fotky profilů a aut
 - Sdílení nákladů + platební brána
 - Refresh tokeny a odvolatelné JWT
-- Mobilní aplikace (React Native)
 
 ---
 

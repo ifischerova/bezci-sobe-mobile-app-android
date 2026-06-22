@@ -3,10 +3,10 @@
 [Česky](README.cs.md) | **English**
 
 Full-stack carpooling platform for runners going to Czech running races. The
-project pairs a React + TypeScript frontend with a Spring Boot + PostgreSQL
-backend that demonstrates layered architecture, JWT authentication,
-role-based authorization, validation, OpenAPI documentation, logging, and
-monitoring.
+project pairs a React + TypeScript frontend and a native Kotlin + Jetpack
+Compose Android app with a Spring Boot + PostgreSQL backend that demonstrates
+layered architecture, JWT authentication, role-based authorization,
+validation, OpenAPI documentation, logging, and monitoring.
 
 ## Architecture
 
@@ -37,6 +37,17 @@ controller  →  service  →  repository  →  entity (JPA)
 Cross-cutting: `config/` (Security, CORS, OpenAPI), `security/` (JWT
 filter/provider/UserDetails), `validation/` (custom `@ValidRideRequest`
 constraint), `exception/` (typed exceptions + global handler).
+
+## Android app
+
+A native **Kotlin + Jetpack Compose** client (MVVM, offline-first with Room)
+that talks to the same backend. It covers race browsing/search, login &
+registration, settings (light/dark theme + cs/en language), and the full
+carpooling flow (offer / request / accept / cancel rides per race), plus a
+daily upcoming-race notification. It builds on a stable toolchain
+(Gradle 8.11.1 / AGP 8.7.3 / Kotlin 2.0.21 / compileSdk 35 / Java 17) and
+reaches the backend at `http://10.0.2.2:8080/api` from the emulator. Full
+run and test instructions live in [`android/README.md`](android/README.md).
 
 ## Features
 
@@ -97,6 +108,12 @@ npm run build        # tsc + Vite, ESLint clean, build clean
 npm run e2e          # Playwright (Chromium + Firefox)
 ```
 
+The API base URL is read from the `VITE_API_BASE` env var (default
+`http://localhost:8080/api`); see `.env.example`. For a non-localhost
+backend, set `VITE_API_BASE` (e.g. in a `.env` file) before building or
+running the dev server. Form validators live in `src/utils/validation.ts`
+and are used by the registration form.
+
 ## Backend
 
 ### One-time setup
@@ -107,14 +124,18 @@ CREATE DATABASE bezcisobe;
 -- (override in application.yml for non-development environments).
 ```
 
-Flyway creates the schema and seeds reference data, races, users, and sample
-rides automatically on first run via migrations `V1`–`V10` (V5/V6 fill the
-2026 calendar from a public race scraper, V7 patches a ride-destination
-bug in earlier seed data, V8 removes the admin account from the carpool
-rides, V9 adds 10 international users with rides so the ride list visibly
-mixes Czech and non-Czech runners, V10 adds the `email_verified` column
-and the `verification_tokens` / `password_reset_tokens` tables, and
-backfills all seed users to verified so the test accounts keep working).
+Flyway runs in two separate locations:
+
+- **Structural migrations** (`classpath:db/migration`) run in **all**
+  environments: `V1` creates the schema, `V2` seeds reference data, `V10`
+  adds the `email_verified` column and the `verification_tokens` /
+  `password_reset_tokens` tables, `V11` adds the user language column, and
+  `V12` adds `rides.version` for optimistic locking.
+- **Demo-seed migrations** (`classpath:db/seed`, `V3`–`V9` — sample users
+  incl. `admin`/`admin123`, races, and rides) run **only** under the `dev`
+  profile, which appends `db/seed` to `spring.flyway.locations` in
+  `application-dev.yml`. The seeded demo accounts therefore do **not** exist
+  in production.
 
 ### Run
 
@@ -221,11 +242,13 @@ at ERROR (`GlobalExceptionHandler#handleUnexpected`).
 
 > **DEV / DEMO ONLY** — the accounts listed below exist only to make
 > local development and the academic defence walkthrough possible. They
-> are seeded by Flyway migrations V3/V5/V9 and their passwords are
-> documented in this README. **Before any non-development deployment,
-> all seeded accounts must be deleted (or have their passwords rotated)
-> and a fresh admin must be provisioned through your standard DBA process.**
-> The seeded credentials are NOT considered secrets.
+> are seeded by Flyway migrations V3/V5/V9 in `classpath:db/seed`, which
+> runs **only under the `dev` profile**, so these accounts do **not** exist
+> in production. Their passwords are documented in this README. **Before
+> any non-development deployment, ensure the demo seed is not applied (or,
+> if it ever was, delete the seeded accounts / rotate their passwords) and
+> provision a fresh admin through your standard DBA process.** The seeded
+> credentials are NOT considered secrets.
 
 V3 baseline accounts:
 
@@ -269,9 +292,10 @@ The seed BCrypt hashes were regenerated against
 -Dtest=BCryptHashValidationTest` will fail loudly if a hash drifts from
 its password.
 
-All seed accounts above are backfilled to `email_verified = true` in
-migration `V10`, so they can sign in directly without going through the
-email-verification step. Brand-new accounts created via `POST /api/auth/register`
+All seed accounts above are backfilled to `email_verified = true` by
+migration `V10` (which runs after the demo seed under the `dev` profile),
+so they can sign in directly without going through the email-verification
+step. Brand-new accounts created via `POST /api/auth/register`
 are NOT pre-verified — they must click the link sent to their inbox before
 login succeeds.
 
@@ -294,8 +318,22 @@ login succeeds.
   Postgres credentials are read from environment variables (`JWT_SECRET`,
   `DATABASE_URL`, `DATABASE_USERNAME`, `DATABASE_PASSWORD`); the YAML
   defaults are clearly-marked dev placeholders so the app still runs out
-  of the box on a fresh checkout. Set real values via env vars (or a
+  of the box on a fresh checkout. Outside the `dev`/`test` profiles the app
+  **refuses to start** if `JWT_SECRET` is still the committed placeholder or
+  shorter than 32 bytes (256 bits). Set real values via env vars (or a
   secret store) before any non-development deployment.
+- Requests are authenticated by resolving the user from the token **subject**
+  (the immutable user id), not the username, so renaming a user never
+  invalidates or mis-routes a live token.
+- CORS allowed origins are configurable via the `APP_CORS_ALLOWED_ORIGINS`
+  env var (property `app.cors.allowed-origins`, default
+  `http://localhost:5173`).
+- Registration does **not** reveal whether an email is already registered
+  (anti-enumeration); a duplicate **username** is still reported.
+- Actuator `/info` no longer exposes environment properties (`info.env`
+  disabled), so anonymous callers cannot read system/env metadata.
+- Ride accept/cancel use optimistic locking, returning a clean `400` on a
+  seat conflict instead of a `500`.
 - Method-level authorization via Spring Security `@EnableMethodSecurity`
   (`@PreAuthorize`); URL filter gives a second layer of role checks
 - React's automatic XSS escaping; client-side input validation mirrored by
