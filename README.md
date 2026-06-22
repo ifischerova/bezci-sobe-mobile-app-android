@@ -72,7 +72,7 @@ constraint), `exception/` (typed exceptions + global handler).
 - Light **and** dark theme — floating Sun/Moon toggle on every page,
   follows OS `prefers-color-scheme` on the first visit, persists user
   overrides; in dark mode the brand recolours to violet + sky-blue
-- 35 frontend unit tests (Vitest) + 22 E2E scenarios (Playwright)
+- 41 frontend unit tests (Vitest) + 22 E2E scenarios (Playwright)
 - Backend tests with JUnit 5 + Mockito + Spring MockMvc + Spring Security
   Test (controllers, service layer, custom validator)
 
@@ -92,7 +92,7 @@ constraint), `exception/` (typed exceptions + global handler).
 npm install
 npm run dev          # http://localhost:5173
 npm run lint
-npm test -- --run    # 35 unit tests, single pass
+npm test -- --run    # 41 unit tests, single pass
 npm run build        # tsc + Vite, ESLint clean, build clean
 npm run e2e          # Playwright (Chromium + Firefox)
 ```

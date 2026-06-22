@@ -25,6 +25,7 @@ export const RacesPage = () => {
   });
 
   const [toast, setToast] = useState<{ kind: 'success' | 'error'; text: string } | null>(null);
+  const [loadError, setLoadError] = useState(false);
 
   useEffect(() => {
     if (!toast) return;
@@ -53,25 +54,40 @@ export const RacesPage = () => {
     }
   };
 
+  const [reloadKey, setReloadKey] = useState(0);
+
   useEffect(() => {
     const loadRaces = async () => {
-      const loadedRaces = await apiService.getRaces();
-      setRaces(loadedRaces);
+      try {
+        const loadedRaces = await apiService.getRaces();
+        setRaces(loadedRaces);
+        setLoadError(false);
+      } catch {
+        setLoadError(true);
+        showToast('error', t('races.alert.loadRacesError'));
+      }
     };
     loadRaces();
-  }, []);
+  }, [reloadKey, t]);
 
   useEffect(() => {
     const loadRides = async () => {
       if (selectedRace) {
-        const loadedRides = await apiService.getRidesByRace(selectedRace);
-        setRides(loadedRides);
+        try {
+          const loadedRides = await apiService.getRidesByRace(selectedRace);
+          setRides(loadedRides);
+        } catch {
+          setRides([]);
+          showToast('error', t('races.alert.loadRidesError'));
+        }
       } else {
         setRides([]);
       }
     };
     loadRides();
-  }, [selectedRace]);
+  }, [selectedRace, reloadKey, t]);
+
+  const retryLoad = () => setReloadKey((k) => k + 1);
 
   const handleRaceSelect = (raceId: string) => {
     setSelectedRace(raceId);
@@ -203,6 +219,16 @@ export const RacesPage = () => {
           {t('races.hero.subtitle')}
         </p>
       </div>
+
+      {/* Initial load failure */}
+      {loadError && races.length === 0 && (
+        <div className="glass-card p-6 mb-8 max-w-3xl mx-auto text-center border-2 border-red-300 dark:border-red-800">
+          <p className="text-dark-700 dark:text-dark-200 mb-4">{t('races.load.error')}</p>
+          <button onClick={retryLoad} className="btn-primary-custom">
+            {t('common.retry')}
+          </button>
+        </div>
+      )}
 
       {/* Race Selector Card */}
       <div className="glass-card p-6 mb-8 max-w-3xl mx-auto">

@@ -4,6 +4,7 @@ import { PartyPopper, Mail } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { useTranslation } from '../contexts/LanguageContext';
 import { apiService } from '../services/apiService';
+import { validateEmail, validateUsername, validatePassword } from '../utils/validation';
 
 export const RegistrationPage = () => {
   const [formData, setFormData] = useState({
@@ -28,14 +29,14 @@ export const RegistrationPage = () => {
       newErrors.username = t('auth.register.error.usernameRequired');
     } else if (formData.username.length < 3) {
       newErrors.username = t('auth.register.error.usernameShort');
-    } else if (!/^[a-zA-Z0-9._-]+$/.test(formData.username)) {
+    } else if (!validateUsername(formData.username)) {
       newErrors.username = t('auth.register.error.usernameInvalid');
     }
 
     // Email validation
     if (!formData.email) {
       newErrors.email = t('auth.register.error.emailRequired');
-    } else if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(formData.email)) {
+    } else if (!validateEmail(formData.email)) {
       newErrors.email = t('auth.register.error.emailInvalid');
     }
 
@@ -44,7 +45,7 @@ export const RegistrationPage = () => {
       newErrors.password = t('auth.register.error.passwordRequired');
     } else if (formData.password.length < 6) {
       newErrors.password = t('auth.register.error.passwordShort');
-    } else if (!/(?=.*[a-z])(?=.*[A-Z])|(?=.*\d)/.test(formData.password)) {
+    } else if (!validatePassword(formData.password)) {
       newErrors.password = t('auth.register.error.passwordWeak');
     }
 

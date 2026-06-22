@@ -1,6 +1,6 @@
 import { User, Race, Ride, RaceCalendar, TrackLength, TrackType, AuthResponse, RideType, UserResponse } from '../types';
 
-const API_BASE = 'http://localhost:8080/api';
+const API_BASE = import.meta.env.VITE_API_BASE ?? 'http://localhost:8080/api';
 const TOKEN_KEY = 'bezci_sobe_token';
 
 function getToken(): string | null {
@@ -220,7 +220,7 @@ export const apiService = {
     });
     if (!res.ok) {
       const body = await res.json().catch(() => ({ message: 'Chyba při mazání jízdy' }));
-      throw new Error(body.message);
+      throw new ApiError(body.message || `HTTP ${res.status}`, res.status);
     }
   },
 

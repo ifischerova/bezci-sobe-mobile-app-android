@@ -1,7 +1,13 @@
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { User, LoginCredentials, RegisterData, AuthResponse } from '../types';
+import { User, LoginCredentials, RegisterData, AuthResponse, Role } from '../types';
 import { apiService } from '../services/apiService';
 import { useTranslation } from './LanguageContext';
+
+// Backend returns roles as plain strings; keep only values that match the known
+// Role union so an unexpected backend value can't leak into a typed User.
+const KNOWN_ROLES = Object.values(Role) as string[];
+const toRoles = (roles: string[]): Role[] =>
+  roles.filter((r): r is Role => KNOWN_ROLES.includes(r));
 
 interface AuthContextType {
   user: User | null;
@@ -68,7 +74,7 @@ export const AuthProvider = ({ children }: { children: ReactNode }) => {
           lastName: updated.lastName,
           city: updated.city,
           language: updated.language,
-          roles: (updated.roles as unknown) as User['roles'],
+          roles: toRoles(updated.roles),
         };
       }
       return {
