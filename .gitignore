@@ -48,3 +48,9 @@ coverage
 .env
 .env.local
 .env.*.local
+
+# AI/agent tooling artifacts (internal, kept local)
+docs/superpowers/
+
+# Kotlin compiler caches
+.kotlin/
