@@ -1,5 +1,5 @@
 <resources>
-    <string name="app_name">Runners Together</string>
+    <string name="app_name">Běžci sobě</string>
     <string name="search_races">Search races</string>
     <string name="no_races">No races to show</string>
     <string name="login">Log in</string>
